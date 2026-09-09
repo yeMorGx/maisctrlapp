@@ -1,0 +1,21 @@
+{
+  "name": "MaisCtrl",
+  "short_name": "MaisCtrl",
+  "description": "Controle suas assinaturas com mais clareza.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f7f8",
+  "theme_color": "#f7f7f8",
+  "icons": [
+    {
+      "src": "/assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
