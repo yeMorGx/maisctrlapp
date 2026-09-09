@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -47,3 +47,15 @@ jobs:
           name: maisctrl-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish APK download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: MaisCtrl Android — versão de teste
+          body: "APK de teste mais recente do MaisCtrl para Android."
+          prerelease: true
+          make_latest: false
+          files: android/app/build/outputs/apk/debug/app-debug.apk#maisctrl.apk
+          fail_on_unmatched_files: true
+          overwrite_files: true
