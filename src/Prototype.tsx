@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
+import { Capacitor } from "@capacitor/core";
+import { LocalNotifications } from "@capacitor/local-notifications";
+import { PushNotifications } from "@capacitor/push-notifications";
 import {
   ArrowLeftIcon,
   BarChartIcon,
@@ -82,7 +85,7 @@ function AuthBackground() {
   );
 }
 
-function BackButton({ flow }: { flow: FlowControls }) {
+function BackButton({ flow, onBack }: { flow: FlowControls; onBack?: () => void }) {
   return (
     <button
       className="icon-button auth-back-button"
@@ -90,6 +93,10 @@ function BackButton({ flow }: { flow: FlowControls }) {
       aria-label="Voltar"
       onClick={(event) => {
         event.currentTarget.blur();
+        if (onBack) {
+          onBack();
+          return;
+        }
         flow.pop();
       }}
     >
@@ -249,11 +256,11 @@ function WelcomeScreen({ flow }: { flow: FlowControls }) {
   );
 }
 
-function AuthTopbar({ flow }: { flow: FlowControls }) {
+function AuthTopbar({ flow, onBack, showBrand = true }: { flow: FlowControls; onBack?: () => void; showBrand?: boolean }) {
   return (
     <div className="auth-topbar auth-topbar-form">
-      <BackButton flow={flow} />
-      <BrandLockup />
+      <BackButton flow={flow} onBack={onBack} />
+      {showBrand ? <BrandLockup /> : <span className="topbar-spacer" aria-hidden="true" />}
       <span className="topbar-spacer" aria-hidden="true" />
     </div>
   );
@@ -393,13 +400,69 @@ function LoginScreen({ flow }: { flow: FlowControls }) {
 
 function SignupScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [signupStep, setSignupStep] = useState<0 | 1 | 2 | 3>(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [authError, setAuthError] = useState("");
   const [successMessage, setSuccessMessage] = useState("Conta criada. Verifique seu e-mail para confirmar o acesso.");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const stepContent = [
+    {
+      kicker: "Etapa 1 de 4",
+      title: "Como podemos te chamar?",
+      description: "Comece pelo essencial para personalizarmos seu espaço.",
+    },
+    {
+      kicker: "Etapa 2 de 4",
+      title: "Qual é o seu e-mail?",
+      description: "Vamos usar ele para proteger e confirmar sua conta.",
+    },
+    {
+      kicker: "Etapa 3 de 4",
+      title: "Crie uma senha segura.",
+      description: "Use pelo menos 8 caracteres para manter tudo protegido.",
+    },
+    {
+      kicker: "Seu toque final",
+      title: "Adicione uma foto.",
+      description: "Ajude a deixar seu espaço mais pessoal. Você pode pular por enquanto.",
+    },
+  ][signupStep];
+
+  const emailIsValid = email.includes("@") && email.includes(".");
+  const canAdvance = signupStep === 0 ? Boolean(name.trim()) : signupStep === 1 ? emailIsValid : password.length >= 8;
+
+  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setAuthError("Escolha uma imagem para usar como foto de perfil.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+    setAuthError("");
+  };
+
+  const goToPreviousSignupStep = () => {
+    keyboard.hide();
+    setAuthError("");
+    setSignupStep((step) => (step > 0 ? ((step - 1) as 0 | 1 | 2 | 3) : 0));
+  };
+
+  const advanceSignupStep = () => {
+    keyboard.hide();
+    setAuthError("");
+    setSignupStep((step) => (step < 3 ? ((step + 1) as 0 | 1 | 2 | 3) : 3));
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -438,9 +501,9 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
   };
 
   return (
-    <div className="auth-screen" data-testid="signup-screen">
-      <AuthBackground />
-      <AuthTopbar flow={flow} />
+    <div className="auth-screen auth-screen-signup" data-testid="signup-screen">
+      <AuthTopbar flow={flow} onBack={signupStep > 0 ? goToPreviousSignupStep : undefined} showBrand={false} />
+      <img src={logoAsset} alt="MaisCtrl" className="signup-brand-mark" draggable={false} />
 
       <MobileScroll className="auth-scroll">
         <AuthScrollContent className="auth-scroll-content auth-scroll-content-form">
@@ -451,9 +514,15 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="panel-heading">
-              <span className="panel-kicker">Comece pelo essencial</span>
-              <h1>Vamos cuidar do seu dinheiro.</h1>
-              <p>Crie seu espaço financeiro em menos de um minuto.</p>
+              <span className="panel-kicker">{stepContent.kicker}</span>
+              <h1>{stepContent.title}</h1>
+              <p>{stepContent.description}</p>
+            </div>
+
+            <div className="signup-progress" aria-label={`Etapa ${signupStep + 1} de 4`}>
+              {[0, 1, 2, 3].map((step) => (
+                <span key={step} data-active={step <= signupStep ? "true" : "false"} />
+              ))}
             </div>
 
             {authError && <p className="auth-error" role="alert">{authError}</p>}
@@ -462,29 +531,75 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
               <AuthSuccess message={successMessage} onReset={() => setSubmitted(false)} />
             ) : (
               <form className="auth-form" onSubmit={submit}>
-                <label className="mobile-field" htmlFor="signup-name">
-                  <span className="field-label">Nome completo</span>
-                  <span className="input-shell">
-                    <KeyboardInput
-                      id="signup-name"
-                      value={name}
-                      placeholder="Como podemos te chamar?"
-                      onChange={(event) => setName(event.target.value)}
+                {signupStep === 0 && (
+                  <label className="mobile-field" htmlFor="signup-name">
+                    <span className="field-label">Nome completo</span>
+                    <span className="input-shell">
+                      <KeyboardInput
+                        id="signup-name"
+                        value={name}
+                        placeholder="Como podemos te chamar?"
+                        onChange={(event) => setName(event.target.value)}
+                      />
+                    </span>
+                  </label>
+                )}
+
+                {signupStep === 1 && (
+                  <Field
+                    id="signup-email"
+                    label="E-mail"
+                    placeholder="voce@email.com"
+                    value={email}
+                    onChange={setEmail}
+                    icon="mail"
+                  />
+                )}
+
+                {signupStep === 2 && (
+                  <PasswordField id="signup-password" label="Crie uma senha" value={password} onChange={setPassword} />
+                )}
+
+                {signupStep === 3 && (
+                  <div className="signup-photo-step">
+                    <button
+                      className="signup-avatar-picker"
+                      type="button"
+                      aria-label={avatarPreview ? "Trocar foto de perfil" : "Escolher foto de perfil"}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      {avatarPreview ? <img src={avatarPreview} alt="Prévia da foto de perfil" /> : <PersonIcon aria-hidden="true" />}
+                    </button>
+                    <input
+                      ref={avatarInputRef}
+                      className="signup-avatar-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
                     />
-                  </span>
-                </label>
-                <Field
-                  id="signup-email"
-                  label="E-mail"
-                  placeholder="voce@email.com"
-                  value={email}
-                  onChange={setEmail}
-                  icon="mail"
-                />
-                <PasswordField id="signup-password" label="Crie uma senha" value={password} onChange={setPassword} />
-                <button className="pill-button" type="submit" disabled={!name || !email || password.length < 8 || isSubmitting}>
-                  {isSubmitting ? "Criando..." : "Criar minha conta"}
-                </button>
+                    <div className="signup-photo-copy">
+                      <strong>{avatarPreview ? "Foto escolhida" : "Sua foto de perfil"}</strong>
+                      <span>{avatarPreview ? "Você pode trocar quando quiser." : "JPG ou PNG · opcional"}</span>
+                    </div>
+                    <button className="signup-photo-button" type="button" onClick={() => avatarInputRef.current?.click()}>
+                      {avatarPreview ? "Trocar foto" : "Escolher foto"}
+                    </button>
+                  </div>
+                )}
+
+                {signupStep < 2 ? (
+                  <button className="pill-button" type="button" disabled={!canAdvance} onClick={advanceSignupStep}>
+                    Continuar
+                  </button>
+                ) : signupStep === 2 ? (
+                  <button className="pill-button" type="button" disabled={!canAdvance} onClick={advanceSignupStep}>
+                    Continuar
+                  </button>
+                ) : (
+                  <button className="pill-button" type="submit" disabled={!name || !emailIsValid || password.length < 8 || isSubmitting}>
+                    {isSubmitting ? "Criando..." : "Criar minha conta"}
+                  </button>
+                )}
               </form>
             )}
 
@@ -610,6 +725,7 @@ type MobileNotification = {
   id: string;
   title: string;
   description: string;
+  date: string;
   tone: "red" | "orange" | "violet";
   subscription: MobileSubscription;
 };
@@ -743,6 +859,7 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
         id: `${subscription.id}-overdue`,
         title: `${subscription.name} está atrasada`,
         description: `Venceu em ${formatAgendaDate(subscription.renewal_date)}.`,
+        date: subscription.renewal_date,
         tone: "red",
         subscription,
       });
@@ -751,6 +868,7 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
         id: `${subscription.id}-renewal`,
         title: renewalDays === 0 ? `${subscription.name} vence hoje` : `${subscription.name} vence em ${renewalDays} dias`,
         description: `${formatCurrency(subscription.value)} · ${formatAgendaDate(subscription.renewal_date)}.`,
+        date: subscription.renewal_date,
         tone: renewalDays <= 2 ? "orange" : "violet",
         subscription,
       });
@@ -763,6 +881,7 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
           id: `${subscription.id}-trial-ended`,
           title: `O teste de ${subscription.name} terminou`,
           description: `Terminou em ${formatAgendaDate(subscription.trial_end_date)}.`,
+          date: subscription.trial_end_date,
           tone: "red",
           subscription,
         });
@@ -771,6 +890,7 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
           id: `${subscription.id}-trial`,
           title: trialDays === 0 ? `O teste de ${subscription.name} termina hoje` : `O teste de ${subscription.name} termina em ${trialDays} dias`,
           description: `Data final: ${formatAgendaDate(subscription.trial_end_date)}.`,
+          date: subscription.trial_end_date,
           tone: "orange",
           subscription,
         });
@@ -783,6 +903,126 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
     const secondDate = asCalendarDate(second.subscription.renewal_date)?.getTime() ?? Number.POSITIVE_INFINITY;
     return firstDate - secondDate;
   });
+}
+
+const nativeNotificationStorageKey = "maisctrl-native-notification-ids";
+
+function nativeNotificationId(value: string) {
+  let hash = 0;
+  for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  return Math.abs(hash) || 1;
+}
+
+function nativeNotificationDate(value: string) {
+  const date = asCalendarDate(value);
+  if (!date) return null;
+
+  date.setHours(9, 0, 0, 0);
+  if (date.getTime() <= Date.now()) date.setTime(Date.now() + 60_000);
+  return date;
+}
+
+async function syncNativeNotifications(notifications: MobileNotification[], requestPermission = false) {
+  if (!Capacitor.isNativePlatform()) return { status: "unavailable" as const, count: 0 };
+
+  try {
+    const permission = await LocalNotifications.checkPermissions();
+    let display = permission.display;
+    if (requestPermission && display !== "granted") {
+      display = (await LocalNotifications.requestPermissions()).display;
+    }
+    if (display !== "granted") return { status: "denied" as const, count: 0 };
+
+    const storedIds = JSON.parse(localStorage.getItem(nativeNotificationStorageKey) ?? "[]") as number[];
+    if (storedIds.length > 0) {
+      await LocalNotifications.cancel({ notifications: storedIds.map((id) => ({ id })) });
+    }
+
+    const reminders = notifications
+      .filter((notification) => {
+        const days = daysUntil(notification.date);
+        return days >= 0 && days <= 7 && nativeNotificationDate(notification.date);
+      })
+      .map((notification) => ({
+        id: nativeNotificationId(notification.id),
+        title: "MaisCtrl",
+        body: notification.title,
+        schedule: { at: nativeNotificationDate(notification.date) ?? new Date(Date.now() + 60_000) },
+        isExactNotification: false,
+        extra: { source: "maisctrl", subscriptionId: notification.subscription.id },
+      }));
+
+    if (reminders.length > 0) await LocalNotifications.schedule({ notifications: reminders });
+    localStorage.setItem(nativeNotificationStorageKey, JSON.stringify(reminders.map((notification) => notification.id)));
+    return { status: "enabled" as const, count: reminders.length };
+  } catch {
+    return { status: "error" as const, count: 0 };
+  }
+}
+
+type PushStatus = "enabled" | "denied" | "unavailable" | "error";
+
+let pushListenerUserId = "";
+let pushListeners: Array<{ remove: () => Promise<void> }> = [];
+
+async function savePushToken(userId: string, token: string) {
+  if (!supabase || !token) return false;
+
+  const platform = Capacitor.getPlatform();
+  if (platform !== "android" && platform !== "ios") return false;
+
+  const { error } = await supabase.from("push_devices").upsert({
+    user_id: userId,
+    token,
+    platform,
+    enabled: true,
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: "token" });
+
+  return !error;
+}
+
+async function preparePushListeners(userId: string) {
+  if (!Capacitor.isNativePlatform() || !supabase) return;
+  if (pushListenerUserId === userId && pushListeners.length > 0) return;
+
+  await Promise.all(pushListeners.map((listener) => listener.remove()));
+  pushListeners = [];
+
+  const registrationListener = await PushNotifications.addListener("registration", ({ value }) => {
+    void savePushToken(userId, value);
+  });
+  const registrationErrorListener = await PushNotifications.addListener("registrationError", (error) => {
+    console.warn("Não foi possível registrar o push do MaisCtrl.", error);
+  });
+
+  pushListeners = [registrationListener, registrationErrorListener];
+  pushListenerUserId = userId;
+}
+
+async function syncPushRegistration(userId: string, requestPermission = false): Promise<PushStatus> {
+  if (!Capacitor.isNativePlatform() || !supabase) return "unavailable";
+
+  try {
+    await preparePushListeners(userId);
+    let permission = await PushNotifications.checkPermissions();
+    if (requestPermission && permission.receive !== "granted") {
+      permission = await PushNotifications.requestPermissions();
+    }
+    if (permission.receive !== "granted") return "denied";
+
+    await PushNotifications.register();
+    return "enabled";
+  } catch {
+    return "error";
+  }
+}
+
+async function clearPushRegistration(userId: string) {
+  if (!supabase || !Capacitor.isNativePlatform()) return;
+
+  await supabase.from("push_devices").delete().eq("user_id", userId);
+  await PushNotifications.unregister().catch(() => undefined);
 }
 
 function subscriptionTone(index: number): SubscriptionTone {
@@ -944,6 +1184,8 @@ function useMobileSubscriptions() {
           email: user.email,
           user_metadata: { full_name: profileResult.data?.full_name ?? user.user_metadata?.full_name },
         }));
+        void syncPushRegistration(user.id);
+        void syncNativeNotifications(buildNotifications(nextSubscriptions));
       } catch {
         if (!active) return;
         setError("Não foi possível carregar suas assinaturas agora.");
@@ -1401,6 +1643,47 @@ function NotificationSheet({
   onOpenSubscription: (subscription: MobileSubscription) => void;
 }) {
   const keyboard = useKeyboard();
+  const [nativeStatus, setNativeStatus] = useState<"checking" | "enabled" | "disabled" | "unavailable">("checking");
+  const [pushStatus, setPushStatus] = useState<PushStatus>("unavailable");
+  const [isEnablingNative, setIsEnablingNative] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!Capacitor.isNativePlatform()) {
+      setNativeStatus("unavailable");
+      setPushStatus("unavailable");
+      return;
+    }
+
+    LocalNotifications.checkPermissions()
+      .then(({ display }) => setNativeStatus(display === "granted" ? "enabled" : "disabled"))
+      .catch(() => setNativeStatus("disabled"));
+
+    if (!supabase) {
+      setPushStatus("unavailable");
+      return;
+    }
+
+    supabase.auth.getSession()
+      .then(async ({ data }) => {
+        if (!data.session) {
+          setPushStatus("denied");
+          return;
+        }
+        const permission = await PushNotifications.checkPermissions();
+        setPushStatus(permission.receive === "granted" ? "enabled" : "denied");
+      })
+      .catch(() => setPushStatus("error"));
+  }, [open]);
+
+  const enableNativeNotifications = async () => {
+    setIsEnablingNative(true);
+    const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+    const userId = data.session?.user.id;
+    const result = userId ? await syncPushRegistration(userId, true) : "denied";
+    setPushStatus(result);
+    setIsEnablingNative(false);
+  };
 
   const handleNotificationClick = (subscription: MobileSubscription) => {
     keyboard.hide();
@@ -1416,6 +1699,26 @@ function NotificationSheet({
       description={notifications.length > 0 ? "O que merece sua atenção agora." : "Você está em dia com suas assinaturas."}
       snap={0.68}
     >
+      {pushStatus !== "unavailable" && pushStatus !== "error" ? (
+        <div className="dashboard-native-notification-card" data-enabled={pushStatus === "enabled"}>
+          <span className="dashboard-notification-icon" data-tone={pushStatus === "enabled" ? "violet" : "orange"}>
+            <BellIcon aria-hidden="true" />
+          </span>
+          <span className="dashboard-native-notification-copy">
+            <strong>{pushStatus === "enabled" ? "Push do celular ativo" : "Receba alertas mesmo fora do app"}</strong>
+            <small>{pushStatus === "enabled" ? "Os próximos vencimentos serão enviados para este aparelho." : "Ative o push para ser avisado quando uma cobrança se aproximar."}</small>
+          </span>
+          {pushStatus !== "enabled" && (
+            <button className="dashboard-inline-button" type="button" onClick={enableNativeNotifications} disabled={isEnablingNative}>
+              {isEnablingNative ? "Ativando..." : "Ativar"}
+            </button>
+          )}
+        </div>
+      ) : pushStatus === "unavailable" ? (
+        <p className="dashboard-native-notification-note">No navegador, os avisos ficam disponíveis dentro do app. No app instalado, você poderá ativar lembretes do celular.</p>
+      ) : (
+        <p className="dashboard-native-notification-note">Não foi possível preparar o push agora. Verifique as permissões do aparelho e tente novamente.</p>
+      )}
       {notifications.length > 0 ? (
         <div className="dashboard-notification-list">
           {notifications.map((notification) => (
@@ -1447,6 +1750,136 @@ function NotificationSheet({
   );
 }
 
+function EditProfileSheet({
+  profile,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  profile: MobileProfile | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const keyboard = useKeyboard();
+  const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setFullName(profile?.full_name ?? "");
+    setPhoneNumber(profile?.phone_number ?? "");
+    setError("");
+  }, [open, profile]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) keyboard.hide();
+    onOpenChange(nextOpen);
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    keyboard.hide();
+    setError("");
+
+    if (!fullName.trim()) {
+      setError("Informe seu nome completo.");
+      return;
+    }
+
+    if (!supabase) {
+      setError("A conexão com o Supabase ainda não foi configurada.");
+      return;
+    }
+
+    setIsSaving(true);
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session) {
+      setError("Sua sessão expirou. Entre novamente para atualizar o perfil.");
+      setIsSaving(false);
+      return;
+    }
+
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName.trim(),
+        phone_number: phoneNumber.trim() || null,
+      })
+      .eq("id", sessionData.session.user.id)
+      .select("full_name,email,phone_number,avatar_url")
+      .maybeSingle();
+
+    if (updateError || !updatedProfile) {
+      setError("Não foi possível atualizar seu perfil agora.");
+      setIsSaving(false);
+      return;
+    }
+
+    onSaved();
+    setIsSaving(false);
+    handleOpenChange(false);
+  };
+
+  return (
+    <BottomSheet
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Editar perfil"
+      description="Atualize seus dados pessoais."
+      snap={0.62}
+    >
+      <form className="subscription-form profile-form" onSubmit={submit}>
+        <label className="mobile-field" htmlFor="profile-full-name">
+          <span className="field-label">Nome completo</span>
+          <span className="input-shell">
+            <KeyboardInput
+              id="profile-full-name"
+              value={fullName}
+              placeholder="Seu nome completo"
+              autoCapitalize="words"
+              onChange={(event) => {
+                setFullName(event.target.value);
+                setError("");
+              }}
+            />
+          </span>
+        </label>
+
+        <label className="mobile-field" htmlFor="profile-phone-number">
+          <span className="field-label">Telefone <small>(opcional)</small></span>
+          <span className="input-shell">
+            <KeyboardInput
+              id="profile-phone-number"
+              type="tel"
+              inputMode="tel"
+              value={phoneNumber}
+              placeholder="(00) 00000-0000"
+              onChange={(event) => {
+                setPhoneNumber(event.target.value);
+                setError("");
+              }}
+            />
+          </span>
+        </label>
+
+        <div className="profile-email-note">
+          <span>E-mail da conta</span>
+          <strong>{profile?.email || "E-mail não informado"}</strong>
+          <small>Para trocar o e-mail, será necessária uma confirmação de segurança.</small>
+        </div>
+
+        {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}
+        <button className="dashboard-primary-button subscription-submit" type="submit" disabled={isSaving}>
+          {isSaving ? "Salvando..." : "Salvar perfil"}
+        </button>
+      </form>
+    </BottomSheet>
+  );
+}
+
 const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNode }> = [
   { id: "overview", label: "Início", icon: <BarChartIcon aria-hidden="true" /> },
   { id: "subscriptions", label: "Assinaturas", icon: <CardStackIcon aria-hidden="true" /> },
@@ -1465,6 +1898,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const [selectedSubscription, setSelectedSubscription] = useState<MobileSubscription | null>(null);
   const [isSubscriptionSheetOpen, setIsSubscriptionSheetOpen] = useState(false);
   const [isNotificationSheetOpen, setIsNotificationSheetOpen] = useState(false);
+  const [isEditProfileSheetOpen, setIsEditProfileSheetOpen] = useState(false);
   const notifications = buildNotifications(subscriptionState.subscriptions);
 
   const openAddSubscription = () => {
@@ -1483,6 +1917,11 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
     setIsNotificationSheetOpen(true);
   };
 
+  const openEditProfile = () => {
+    keyboard.hide();
+    setIsEditProfileSheetOpen(true);
+  };
+
   const handleSubscriptionSheetChange = (open: boolean) => {
     setIsSubscriptionSheetOpen(open);
     if (!open) setSelectedSubscription(null);
@@ -1496,6 +1935,8 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
     }
 
     setIsSigningOut(true);
+    const { data: currentSession } = await supabase.auth.getSession();
+    if (currentSession.session) await clearPushRegistration(currentSession.session.user.id);
     const { error } = await supabase.auth.signOut();
     if (error) {
       setAccountError(authErrorMessage(error));
@@ -1539,6 +1980,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               {...subscriptionState}
               onAddSubscription={openAddSubscription}
               onSubscriptionClick={openSubscriptionActions}
+              onEditProfile={openEditProfile}
               onSignOut={signOut}
               isSigningOut={isSigningOut}
             />
@@ -1579,6 +2021,13 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
         open={isNotificationSheetOpen}
         onOpenChange={setIsNotificationSheetOpen}
         onOpenSubscription={openSubscriptionActions}
+      />
+
+      <EditProfileSheet
+        profile={subscriptionState.profile}
+        open={isEditProfileSheetOpen}
+        onOpenChange={setIsEditProfileSheetOpen}
+        onSaved={subscriptionState.refresh}
       />
     </div>
   );
@@ -1899,6 +2348,7 @@ function DashboardModule({
   plan,
   onAddSubscription,
   onSubscriptionClick,
+  onEditProfile,
   onSignOut,
   isSigningOut,
 }: {
@@ -1913,6 +2363,7 @@ function DashboardModule({
   plan: MobilePlan | null;
   onAddSubscription: () => void;
   onSubscriptionClick: (subscription: MobileSubscription) => void;
+  onEditProfile: () => void;
   onSignOut?: () => void;
   isSigningOut?: boolean;
 }) {
@@ -1942,7 +2393,11 @@ function DashboardModule({
       <span className="dashboard-eyebrow">{moduleCopy.eyebrow}</span>
       <h1>{moduleCopy.title}</h1>
       <p className="dashboard-module-description">{moduleCopy.description}</p>
-      {tab !== "profile" && (
+      {tab === "profile" ? (
+        <button className="dashboard-secondary-button dashboard-profile-edit-button" type="button" onClick={onEditProfile}>
+          Editar perfil
+        </button>
+      ) : (
         <button className="dashboard-primary-button" type="button" onClick={onAddSubscription}>
           <PlusIcon aria-hidden="true" />
           {moduleCopy.action}
@@ -1961,11 +2416,14 @@ function DashboardModule({
       <section className="dashboard-list-card dashboard-module-card">
         {tab === "profile" ? (
           <>
-            <div className="dashboard-profile-avatar"><PersonIcon aria-hidden="true" /></div>
+            <div className="dashboard-profile-avatar">
+              {profile?.avatar_url ? <img src={profile.avatar_url} alt="" draggable={false} /> : <PersonIcon aria-hidden="true" />}
+            </div>
             <h2>{userName}</h2>
             <p>{profile?.email || userEmail || "E-mail não informado"}</p>
             <div className="dashboard-profile-row"><span>Plano atual</span><strong>{formatPlan(plan)}</strong></div>
             <div className="dashboard-profile-row"><span>Validade</span><strong>{formatPlanDetail(plan)}</strong></div>
+            <div className="dashboard-profile-row"><span>Telefone</span><strong>{profile?.phone_number || "Não informado"}</strong></div>
             <button className="dashboard-danger-button" type="button" onClick={onSignOut} disabled={isSigningOut}>
               {isSigningOut ? "Saindo..." : "Sair da conta"}
             </button>

@@ -1,0 +1,10 @@
+{
+  "appId": "com.maisctrl.app",
+  "appName": "MaisCtrl",
+  "webDir": "dist/client",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "banner", "list"]
+    }
+  }
+}

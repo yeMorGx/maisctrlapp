@@ -31,6 +31,145 @@
   color: #f7f7f4;
 }
 
+.auth-screen-signup {
+  background: #202021;
+  color: #1f1f20;
+}
+
+.auth-screen-signup .auth-panel-form {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 30px 22px 24px;
+}
+
+.signup-brand-mark {
+  position: absolute;
+  z-index: 4;
+  top: 184px;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.22));
+}
+
+.auth-screen-signup .auth-scroll-content-form {
+  justify-content: center;
+  padding-top: 128px;
+  padding-bottom: 24px;
+}
+
+.auth-screen-signup .panel-heading {
+  gap: 7px;
+}
+
+.signup-progress {
+  display: flex;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.signup-progress span {
+  height: 4px;
+  flex: 1;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 180ms ease;
+}
+
+.signup-progress span[data-active="true"] {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.auth-screen-signup .auth-form {
+  gap: 11px;
+  margin-top: 18px;
+}
+
+.auth-screen-signup .field-label {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.auth-screen-signup .input-shell {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.auth-screen-signup .input-shell input::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.auth-screen-signup .panel-footer-copy {
+  margin-top: 18px;
+}
+
+.signup-photo-step {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 4px 0 2px;
+  text-align: center;
+}
+
+.signup-avatar-picker {
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: #303031;
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 7px rgba(255, 255, 255, 0.035);
+}
+
+.signup-avatar-picker:hover {
+  border-color: rgba(255, 255, 255, 0.58);
+}
+
+.signup-avatar-picker svg {
+  width: 34px;
+  height: 34px;
+}
+
+.signup-avatar-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.signup-avatar-input {
+  display: none;
+}
+
+.signup-photo-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.signup-photo-copy strong {
+  color: #f8f8f5;
+  font-size: 14px;
+}
+
+.signup-photo-copy span {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 12px;
+}
+
+.signup-photo-button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .auth-background,
 .auth-background-shade {
   position: absolute;
@@ -873,6 +1012,58 @@ button.dashboard-list-item:focus-visible {
   gap: 8px;
 }
 
+.dashboard-native-notification-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 11px;
+  border: 1px solid #e4e4e7;
+  border-radius: 15px;
+  background: #fafafa;
+}
+
+.dashboard-native-notification-card[data-enabled="true"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.dashboard-native-notification-card .dashboard-inline-button {
+  min-height: 30px;
+  margin: 0;
+  padding: 0 10px;
+}
+
+.dashboard-native-notification-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.dashboard-native-notification-copy strong {
+  overflow: hidden;
+  color: #27272a;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-native-notification-copy small {
+  color: #71717a;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.dashboard-native-notification-note {
+  padding: 10px 2px 14px;
+  color: #a1a1aa;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .dashboard-notification-item {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 14px;
@@ -1423,6 +1614,13 @@ button.dashboard-list-item:focus-visible {
   height: 26px;
 }
 
+.dashboard-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .dashboard-profile-card h2,
 .dashboard-module-card > h2,
 .dashboard-module-card > p {
@@ -1450,7 +1648,42 @@ button.dashboard-list-item:focus-visible {
 }
 
 .dashboard-profile-row strong {
+  max-width: 58%;
+  overflow: hidden;
   color: #27272a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-profile-edit-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.profile-email-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 13px;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  background: #fafafa;
+}
+
+.profile-email-note span,
+.profile-email-note small {
+  color: #71717a;
+  font-size: 10px;
+}
+
+.profile-email-note strong {
+  overflow: hidden;
+  color: #27272a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-danger-button {

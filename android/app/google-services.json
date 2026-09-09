@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1067591217568",
+    "project_id": "maisctrl-341d1",
+    "storage_bucket": "maisctrl-341d1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067591217568:android:174d08455ce9d6c12ef4c5",
+        "android_client_info": {
+          "package_name": "com.maisctrl.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5xplsMvYkmFbTuKInwctex_OiujPFII8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
