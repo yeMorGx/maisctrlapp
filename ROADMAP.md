@@ -31,7 +31,8 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Download do APK pelo domínio do MaisCtrl.
 - [x] Build local, testes de runtime e testes do worker passando.
 - [x] Variáveis públicas do Supabase configuradas no GitHub Actions.
-- [ ] APK novo gerado pelo workflow após a configuração.
+- [x] APK novo gerado pelo workflow após a configuração.
+- [x] AAB Release candidato gerado pelo workflow com versionamento automático.
 - [ ] Teste completo em aparelho Android real.
 - [ ] AAB assinado para publicação.
 - [ ] Lançamento interno na Google Play.
@@ -41,7 +42,7 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 
 ### Schema
 
-- [ ] Comparar todas as tabelas do `maisctrl-database-schema.md` com as migrations do projeto.
+- [x] Comparar todas as tabelas do `maisctrl-database-schema.md` com as migrations do projeto.
 - [ ] Aplicar migrations no novo projeto Supabase.
 - [ ] Conferir tabelas, colunas, enums, índices e foreign keys.
 - [ ] Conferir triggers de criação e atualização de perfil.
@@ -298,7 +299,8 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 - [x] Arquivo `/downloads/maisctrl.apk`.
 - [x] Checksum conferido.
 - [x] Deploy do Vercel validado.
-- [ ] Atualizar o APK do site a cada nova release.
+- [x] Atualizar o APK do site para a release Android atual.
+- [ ] Automatizar a atualização do APK do site a cada nova release.
 - [ ] Exibir versão e data do APK.
 - [ ] Exibir instruções de instalação Android.
 - [ ] Exibir aviso de versão de teste enquanto estiver fora da Play Store.
@@ -309,8 +311,8 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 - [x] Validação do Supabase.
 - [x] Variável `VITE_SUPABASE_URL` configurada.
 - [x] Variável `VITE_SUPABASE_PUBLISHABLE_KEY` configurada.
-- [ ] Confirmar workflow verde no commit atual.
-- [ ] Confirmar APK e checksum na release.
+- [x] Confirmar workflow verde no commit atual.
+- [x] Confirmar APK e checksum na release.
 - [ ] Automatizar atualização do APK no site.
 - [ ] Nunca colocar `service_role` ou secrets no bundle.
 
@@ -342,19 +344,16 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 
 ## 19. Ordem imediata
 
-1. Confirmar o workflow Android verde com as variáveis do Supabase.
-2. Baixar e validar o APK novo.
-3. Atualizar o APK hospedado no site.
-4. Testar o APK em um Android real.
-5. Corrigir erros encontrados.
-6. Fechar a validação das migrations no novo Supabase.
-7. Implementar os módulos financeiros restantes.
-8. Implementar push real.
-9. Preparar assinatura e AAB de produção.
-10. Fazer lançamento interno na Play Store.
-11. Implementar Google Play Billing para Premium.
-12. Publicar o app.
-13. Preparar iOS com StoreKit quando o Android estiver estável.
+1. Testar o APK publicado em um Android real.
+2. Fechar a validação das migrations no novo Supabase.
+3. Corrigir erros encontrados no aparelho ou no banco.
+4. Implementar os módulos financeiros restantes.
+5. Implementar push real.
+6. Preparar keystore e AAB assinado de produção.
+7. Fazer lançamento interno na Play Store.
+8. Implementar Google Play Billing para Premium.
+9. Publicar o app.
+10. Preparar iOS com StoreKit quando o Android estiver estável.
 
 ## Critério de pronto para liberar o Android
 
