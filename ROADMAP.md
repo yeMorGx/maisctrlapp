@@ -317,6 +317,7 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 - [x] Variável `VITE_SUPABASE_PUBLISHABLE_KEY` configurada.
 - [x] Confirmar workflow verde no commit atual.
 - [x] Confirmar APK e checksum na release.
+- [x] Executar testes mobile e Sites antes de publicar a release Android.
 - [ ] Automatizar atualização do APK no site.
 - [ ] Nunca colocar `service_role` ou secrets no bundle.
 
