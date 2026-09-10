@@ -61,13 +61,32 @@ function useDeviceScale(deviceWidth: number, deviceHeight: number) {
   return scale;
 }
 
-export function PhoneFrame({ children }: PropsWithChildren) {
+export function PhoneFrame({ children, native = false }: PropsWithChildren<{ native?: boolean }>) {
   const { device } = useMobileDevice();
   const { geometry } = device;
   const scale = useDeviceScale(geometry.device.width, geometry.device.height);
   const screenRef = useRef<HTMLDivElement | null>(null);
   const contextValue = useMemo(() => ({ screenRef }), []);
   const mobileCursor = useMobileCursor();
+
+  if (native) {
+    return (
+      <ScreenPortalContext.Provider value={contextValue}>
+        <div className="native-app-stage">
+          <div
+            ref={screenRef}
+            className="native-device-screen"
+            data-device={device.id}
+            data-platform={device.platform}
+            data-phone-screen
+            data-testid="native-device-screen"
+          >
+            {children}
+          </div>
+        </div>
+      </ScreenPortalContext.Provider>
+    );
+  }
 
   return (
     <ScreenPortalContext.Provider value={contextValue}>

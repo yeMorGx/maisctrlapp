@@ -1,4 +1,5 @@
 import { createContext, type PropsWithChildren, useContext, useMemo, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CheckIcon, ChevronDownIcon } from "@radix-ui/react-icons";
 import { mobileAssets } from "./assets";
@@ -51,7 +52,8 @@ type MobileDeviceContextValue = {
 const MobileDeviceContext = createContext<MobileDeviceContextValue | null>(null);
 
 export function MobileDeviceProvider({ children }: PropsWithChildren) {
-  const [deviceId, setDeviceId] = useState<MobileDeviceId>("iphone");
+  const nativeDefaultDevice: MobileDeviceId = Capacitor.getPlatform() === "android" ? "pixel-10" : "iphone";
+  const [deviceId, setDeviceId] = useState<MobileDeviceId>(nativeDefaultDevice);
   const value = useMemo(
     () => ({ device: mobileDevices[deviceId], deviceId, setDeviceId }),
     [deviceId],

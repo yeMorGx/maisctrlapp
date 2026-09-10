@@ -252,6 +252,32 @@ button {
   inset: 0;
 }
 
+.native-app-stage,
+.native-device-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.native-device-screen .mobile-app-viewport[data-platform="android"] {
+  bottom: 0;
+}
+
+.native-device-screen .mobile-page {
+  --mobile-safe-area-height: env(safe-area-inset-bottom, 0px);
+}
+
+.native-device-screen .auth-topbar,
+.native-device-screen .dashboard-topbar {
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+}
+
+.native-device-screen .dashboard-content {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 70px);
+}
+
 .mobile-app-viewport[data-platform="android"][data-keyboard-visible="false"] {
   bottom: var(--device-safe-area-bottom, 48px);
 }

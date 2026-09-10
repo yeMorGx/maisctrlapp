@@ -71,6 +71,16 @@ test("finance entries stay available locally after navigation", async ({ page })
   await page.getByRole("tab", { name: "Lançamentos" }).click();
   await expect(page.getByText("Mercado")).toBeVisible();
   await expect(page.locator(".finance-entry-amount")).toContainText("123,45");
+
+  await page.getByRole("button", { name: "Editar lançamento: Mercado" }).click();
+  await page.getByLabel("Descrição").fill("Supermercado");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByText("Supermercado")).toBeVisible();
+
+  await page.getByLabel("Buscar lançamento").fill("não existe");
+  await expect(page.getByText("Nenhum lançamento encontrado")).toBeVisible();
+  await page.getByLabel("Buscar lançamento").fill("");
+
   await page.reload();
   await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Finanças" }).click();

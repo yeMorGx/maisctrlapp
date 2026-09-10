@@ -837,7 +837,11 @@ function useLocalFinance() {
     setTransactions((current) => current.filter((transaction) => transaction.id !== id));
   };
 
-  return { transactions, addTransaction, removeTransaction };
+  const updateTransaction = (id: string, transaction: Omit<LocalTransaction, "id">) => {
+    setTransactions((current) => current.map((item) => item.id === id ? { ...transaction, id } : item));
+  };
+
+  return { transactions, addTransaction, updateTransaction, removeTransaction };
 }
 
 type MobileNotification = {
@@ -2551,10 +2555,12 @@ function LocalTransactionSheet({
   open,
   onOpenChange,
   onCreated,
+  transaction = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (transaction: Omit<LocalTransaction, "id">) => void;
+  onCreated: (transaction: Omit<LocalTransaction, "id">, id?: string) => void;
+  transaction?: LocalTransaction | null;
 }) {
   const keyboard = useKeyboard();
   const [type, setType] = useState<LocalTransactionType>("expense");
@@ -2566,9 +2572,17 @@ function LocalTransactionSheet({
 
   useEffect(() => {
     if (!open) return;
+    if (transaction) {
+      setType(transaction.type);
+      setDescription(transaction.description);
+      setCategory(transaction.category);
+      setValue(String(transaction.value).replace(".", ","));
+      setDate(transaction.date);
+      setError("");
+    }
     const timer = window.setTimeout(() => keyboard.hide(), 0);
     return () => window.clearTimeout(timer);
-  }, [open]);
+  }, [open, transaction?.id]);
 
   const reset = () => {
     setType("expense");
@@ -2597,7 +2611,7 @@ function LocalTransactionSheet({
       return;
     }
 
-    onCreated({ type, description: description.trim(), category: category.trim() || "Geral", value: parsedValue, date });
+    onCreated({ type, description: description.trim(), category: category.trim() || "Geral", value: parsedValue, date }, transaction?.id);
     handleOpenChange(false);
   };
 
@@ -2605,8 +2619,8 @@ function LocalTransactionSheet({
     <BottomSheet
       open={open}
       onOpenChange={handleOpenChange}
-      title="Novo lançamento"
-      description="Organize uma entrada ou saída enquanto o banco não está conectado."
+      title={transaction ? "Editar lançamento" : "Novo lançamento"}
+      description={transaction ? "Corrija os dados deste registro local." : "Organize uma entrada ou saída enquanto o banco não está conectado."}
       snap={0.68}
     >
       <form className="subscription-form finance-entry-form" onSubmit={submit}>
@@ -2667,20 +2681,84 @@ function LocalTransactionSheet({
 
         {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}
 
-        <button className="dashboard-primary-button subscription-submit" type="submit">Salvar lançamento</button>
+        <button className="dashboard-primary-button subscription-submit" type="submit">{transaction ? "Salvar alterações" : "Salvar lançamento"}</button>
       </form>
     </BottomSheet>
   );
 }
 
 function DashboardFinance() {
-  const { transactions, addTransaction, removeTransaction } = useLocalFinance();
+  const { transactions, addTransaction, updateTransaction, removeTransaction } = useLocalFinance();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null);
   const [view, setView] = useState<"overview" | "entries">("overview");
-  const income = transactions.filter((transaction) => transaction.type === "income").reduce((total, transaction) => total + transaction.value, 0);
-  const expenses = transactions.filter((transaction) => transaction.type === "expense").reduce((total, transaction) => total + transaction.value, 0);
+  const [periodFilter, setPeriodFilter] = useState<"month" | "all">("month");
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | LocalTransactionType>("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const periodTransactions = transactions.filter((transaction) => periodFilter === "all" || transaction.date.startsWith(currentMonth));
+  const income = periodTransactions.filter((transaction) => transaction.type === "income").reduce((total, transaction) => total + transaction.value, 0);
+  const expenses = periodTransactions.filter((transaction) => transaction.type === "expense").reduce((total, transaction) => total + transaction.value, 0);
   const balance = income - expenses;
-  const recentTransactions = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const categories = Array.from(new Set(periodTransactions.map((transaction) => transaction.category))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const filteredTransactions = [...periodTransactions]
+    .filter((transaction) => typeFilter === "all" || transaction.type === typeFilter)
+    .filter((transaction) => categoryFilter === "all" || transaction.category === categoryFilter)
+    .filter((transaction) => {
+      const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
+      if (!normalizedQuery) return true;
+      return `${transaction.description} ${transaction.category}`.toLocaleLowerCase("pt-BR").includes(normalizedQuery);
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const recentTransactions = filteredTransactions.slice(0, 5);
+  const categoryTotals = Array.from(new Set(periodTransactions.map((transaction) => transaction.category)))
+    .map((category) => ({
+      category,
+      value: periodTransactions.filter((transaction) => transaction.type === "expense" && transaction.category === category).reduce((total, transaction) => total + transaction.value, 0),
+    }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4);
+  const largestExpense = periodTransactions.filter((transaction) => transaction.type === "expense").sort((a, b) => b.value - a.value)[0] ?? null;
+  const expenseRatio = income > 0 ? expenses / income : null;
+  const healthTone = balance < 0 ? "attention" : expenseRatio !== null && expenseRatio > 0.8 ? "watch" : "good";
+  const healthTitle = healthTone === "attention" ? "Atenção ao saldo" : healthTone === "watch" ? "Observe o ritmo" : "Você está no controle";
+  const periodLabel = periodFilter === "all" ? "Todo o período" : "Este mês";
+
+  const openNewTransaction = () => {
+    setSelectedTransaction(null);
+    setIsSheetOpen(true);
+  };
+
+  const openEditTransaction = (transaction: LocalTransaction) => {
+    setSelectedTransaction(transaction);
+    setIsSheetOpen(true);
+  };
+
+  const handleTransactionSave = (transaction: Omit<LocalTransaction, "id">, id?: string) => {
+    if (id) updateTransaction(id, transaction);
+    else addTransaction(transaction);
+  };
+
+  const exportTransactions = () => {
+    if (transactions.length === 0) return;
+    const header = "tipo;descrição;categoria;valor;data";
+    const rows = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).map((transaction) => [
+      transaction.type === "income" ? "entrada" : "saída",
+      transaction.description,
+      transaction.category,
+      transaction.value.toFixed(2).replace(".", ","),
+      transaction.date,
+    ].map((value) => `"${value.replaceAll('"', '""')}"`).join(";"));
+    const blob = new Blob([`${header}\n${rows.join("\n")}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `maisctrl-lancamentos-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -2701,7 +2779,7 @@ function DashboardFinance() {
         <div className="finance-metric-card" data-tone="red"><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div>
       </div>
 
-      <button className="dashboard-primary-button finance-add-button" type="button" onClick={() => setIsSheetOpen(true)}>
+      <button className="dashboard-primary-button finance-add-button" type="button" onClick={openNewTransaction}>
         <PlusIcon aria-hidden="true" />
         Novo lançamento
       </button>
@@ -2711,8 +2789,48 @@ function DashboardFinance() {
         <button type="button" role="tab" aria-selected={view === "entries"} data-active={view === "entries"} onClick={() => setView("entries")}>Lançamentos</button>
       </div>
 
+      <label className="finance-period-bar">
+        <span>Período dos dados</span>
+        <select aria-label="Filtrar por período" value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value as "month" | "all")}>
+          <option value="month">Este mês</option>
+          <option value="all">Todo o período</option>
+        </select>
+      </label>
+
       {view === "overview" ? (
-        <section className="finance-tools-card">
+        <>
+          <section className="finance-health-card" data-tone={healthTone} aria-label="Saúde financeira local">
+            <div className="finance-health-heading">
+              <div>
+                <span className="dashboard-eyebrow">{periodLabel}</span>
+                <strong>{healthTitle}</strong>
+              </div>
+              <span className="finance-health-score">{income > 0 ? `${Math.max(0, Math.round((1 - (expenses / income)) * 100))}%` : "—"}</span>
+            </div>
+            <p>{periodTransactions.length === 0 ? "Registre uma entrada ou saída para começar a acompanhar sua saúde financeira." : largestExpense ? `Maior saída: ${largestExpense.description} · ${formatCurrency(largestExpense.value)}.` : "Ainda não há saídas registradas neste período."}</p>
+          </section>
+
+          {categoryTotals.length > 0 && (
+            <section className="finance-category-card" aria-label="Gastos por categoria">
+              <div className="dashboard-section-title-row">
+                <div>
+                  <span className="dashboard-eyebrow">Distribuição</span>
+                  <h2>Gastos por categoria</h2>
+                </div>
+              </div>
+              <div className="finance-category-list">
+                {categoryTotals.map((item) => (
+                  <div className="finance-category-row" key={item.category}>
+                    <span>{item.category}</span>
+                    <div className="finance-category-track"><span style={{ width: `${Math.min(100, expenses > 0 ? (item.value / expenses) * 100 : 0)}%` }} /></div>
+                    <strong>{formatCurrency(item.value)}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="finance-tools-card">
           <div className="dashboard-section-title-row">
             <div>
               <span className="dashboard-eyebrow">Próximas áreas</span>
@@ -2725,7 +2843,8 @@ function DashboardFinance() {
             <div className="finance-tool-card"><CalendarIcon aria-hidden="true" /><strong>Parcelas</strong><span>Progresso mensal</span></div>
             <div className="finance-tool-card"><BarChartIcon aria-hidden="true" /><strong>Investimentos</strong><span>Patrimônio e metas</span></div>
           </div>
-        </section>
+          </section>
+        </>
       ) : (
         <section className="dashboard-list-card finance-entries-card">
           <div className="dashboard-section-title-row">
@@ -2733,22 +2852,49 @@ function DashboardFinance() {
               <span className="dashboard-eyebrow">Histórico local</span>
               <h2>Últimos lançamentos</h2>
             </div>
-            <span className="dashboard-calendar-count">{transactions.length}</span>
+            <div className="finance-entry-header-actions">
+              <span className="dashboard-calendar-count">{filteredTransactions.length}</span>
+              <button className="finance-export-button" type="button" onClick={exportTransactions} disabled={transactions.length === 0}>Exportar</button>
+            </div>
+          </div>
+          <div className="finance-filters" aria-label="Filtros de lançamentos">
+            <label className="finance-search-field">
+              <span className="sr-only">Buscar lançamento</span>
+              <input value={query} placeholder="Buscar" onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <label className="finance-filter-field">
+              <span className="sr-only">Filtrar por tipo</span>
+              <select aria-label="Filtrar por tipo" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as "all" | LocalTransactionType)}>
+                <option value="all">Todos</option>
+                <option value="income">Entradas</option>
+                <option value="expense">Saídas</option>
+              </select>
+            </label>
+            <label className="finance-filter-field">
+              <span className="sr-only">Filtrar por categoria</span>
+              <select aria-label="Filtrar por categoria" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                <option value="all">Categorias</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
           </div>
           {recentTransactions.length > 0 ? recentTransactions.map((transaction) => (
             <div className="finance-entry-row" key={transaction.id}>
               <span className="dashboard-list-avatar" data-tone={transaction.type === "income" ? "green" : "red"}>{transaction.type === "income" ? "+" : "−"}</span>
               <span className="dashboard-list-copy"><strong>{transaction.description}</strong><small>{transaction.category} · {formatShortDate(transaction.date)}</small></span>
               <span className="finance-entry-amount" data-type={transaction.type}>{transaction.type === "income" ? "+" : "−"}{formatCurrency(transaction.value)}</span>
-              <button className="finance-entry-delete" type="button" onClick={() => removeTransaction(transaction.id)}>Excluir</button>
+              <div className="finance-entry-actions">
+                <button className="finance-entry-edit" type="button" aria-label={`Editar lançamento: ${transaction.description}`} onClick={() => openEditTransaction(transaction)}>Editar</button>
+                <button className="finance-entry-delete" type="button" onClick={() => removeTransaction(transaction.id)}>Excluir</button>
+              </div>
             </div>
           )) : (
-            <div className="dashboard-data-state"><strong>Nenhum lançamento ainda</strong><span>Comece registrando uma entrada ou saída.</span></div>
+            <div className="dashboard-data-state"><strong>{transactions.length > 0 ? "Nenhum lançamento encontrado" : "Nenhum lançamento ainda"}</strong><span>{transactions.length > 0 ? "Tente ajustar os filtros ou a busca." : "Comece registrando uma entrada ou saída."}</span></div>
           )}
         </section>
       )}
 
-      <LocalTransactionSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} onCreated={addTransaction} />
+      <LocalTransactionSheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setSelectedTransaction(null); }} transaction={selectedTransaction} onCreated={handleTransactionSave} />
     </>
   );
 }

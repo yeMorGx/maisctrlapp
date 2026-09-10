@@ -1,21 +1,30 @@
 import { useEffect, type PropsWithChildren } from "react";
+import { Capacitor } from "@capacitor/core";
 import { MobileDeviceProvider, useMobileDevice } from "./Device";
 import { KeyboardDock, KeyboardProvider, useKeyboard } from "./Keyboard";
 import { PhoneFrame } from "./PhoneFrame";
 import { HomeIndicator, StatusBar } from "./components";
 
 export function MobileRuntime({ children }: PropsWithChildren) {
+  const isNative = Capacitor.isNativePlatform();
+
   return (
     <MobileDeviceProvider>
-      <PhoneFrame>
-        <KeyboardProvider>
-          <KeyboardPreview />
-          <StatusBar />
-          <MobileAppViewport>{children}</MobileAppViewport>
-          <HomeIndicator />
-          <KeyboardDock />
-        </KeyboardProvider>
-      </PhoneFrame>
+      <KeyboardProvider simulate={!isNative}>
+        {isNative ? (
+          <PhoneFrame native>
+            <MobileAppViewport>{children}</MobileAppViewport>
+          </PhoneFrame>
+        ) : (
+          <PhoneFrame>
+            <KeyboardPreview />
+            <StatusBar />
+            <MobileAppViewport>{children}</MobileAppViewport>
+            <HomeIndicator />
+            <KeyboardDock />
+          </PhoneFrame>
+        )}
+      </KeyboardProvider>
     </MobileDeviceProvider>
   );
 }

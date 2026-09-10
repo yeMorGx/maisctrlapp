@@ -113,16 +113,21 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Visão geral inicial.
 - [x] Cards de assinaturas, pagamentos e alertas.
 - [x] Navegação para assinaturas, calendário e perfil.
-- [x] Primeiro painel financeiro local para testar entradas e saídas sem backend.
-- [ ] Receita total.
-- [ ] Despesas totais.
-- [ ] Saldo.
+- [x] Painel financeiro local para testar entradas e saídas sem backend.
+- [x] Receita total no modo local.
+- [x] Despesas totais no modo local.
+- [x] Saldo no modo local.
+- [x] Editar, excluir e persistir lançamentos locais.
+- [x] Buscar lançamentos locais por descrição ou categoria.
+- [x] Filtrar lançamentos locais por período, tipo e categoria.
+- [x] Exportar lançamentos locais em CSV.
+- [x] Resumo local de saúde financeira e gastos por categoria.
 - [ ] Sonhos.
 - [ ] Patrimônio.
 - [ ] Investimentos.
-- [ ] Saúde financeira.
+- [ ] Saúde financeira consolidada.
 - [ ] Busca global.
-- [ ] Filtros por período e categoria.
+- [ ] Filtros consolidados por período e categoria.
 - [ ] Próximos pagamentos consolidados.
 - [ ] Painel completo de alertas.
 
