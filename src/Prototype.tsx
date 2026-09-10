@@ -1029,6 +1029,8 @@ function buildNotifications(subscriptions: MobileSubscription[]) {
 }
 
 const nativeNotificationStorageKey = "maisctrl-native-notification-ids";
+const nativePushTokenStorageKey = "maisctrl-native-push-token";
+const pushNotificationChannelId = "maisctrl-reminders";
 
 function nativeNotificationId(value: string) {
   let hash = 0;
@@ -1085,8 +1087,39 @@ async function syncNativeNotifications(notifications: MobileNotification[], requ
 
 type PushStatus = "enabled" | "denied" | "unavailable" | "error";
 
+type PendingPushRegistration = {
+  userId: string;
+  resolve: (saved: boolean) => void;
+  timeoutId: number;
+};
+
 let pushListenerUserId = "";
 let pushListeners: Array<{ remove: () => Promise<void> }> = [];
+let pendingPushRegistration: PendingPushRegistration | null = null;
+
+function finishPushRegistration(userId: string, saved: boolean) {
+  if (pendingPushRegistration?.userId !== userId) return;
+
+  const pending = pendingPushRegistration;
+  pendingPushRegistration = null;
+  window.clearTimeout(pending.timeoutId);
+  pending.resolve(saved);
+}
+
+async function ensurePushNotificationChannel() {
+  if (Capacitor.getPlatform() !== "android") return;
+
+  await PushNotifications.createChannel({
+    id: pushNotificationChannelId,
+    name: "Lembretes de cobranças",
+    description: "Avisos sobre próximos vencimentos e fim de testes.",
+    importance: 4,
+    visibility: 1,
+    vibration: true,
+    lights: true,
+    lightColor: "#7c3aed",
+  });
+}
 
 async function savePushToken(userId: string, token: string) {
   if (!supabase || !token) return false;
@@ -1102,7 +1135,9 @@ async function savePushToken(userId: string, token: string) {
     last_seen_at: new Date().toISOString(),
   }, { onConflict: "token" });
 
-  return !error;
+  if (error) return false;
+  localStorage.setItem(nativePushTokenStorageKey, token);
+  return true;
 }
 
 async function preparePushListeners(userId: string) {
@@ -1113,10 +1148,13 @@ async function preparePushListeners(userId: string) {
   pushListeners = [];
 
   const registrationListener = await PushNotifications.addListener("registration", ({ value }) => {
-    void savePushToken(userId, value);
+    void savePushToken(userId, value)
+      .then((saved) => finishPushRegistration(userId, saved))
+      .catch(() => finishPushRegistration(userId, false));
   });
   const registrationErrorListener = await PushNotifications.addListener("registrationError", (error) => {
     console.warn("Não foi possível registrar o push do MaisCtrl.", error);
+    finishPushRegistration(userId, false);
   });
 
   pushListeners = [registrationListener, registrationErrorListener];
@@ -1128,15 +1166,34 @@ async function syncPushRegistration(userId: string, requestPermission = false): 
 
   try {
     await preparePushListeners(userId);
+    await ensurePushNotificationChannel();
     let permission = await PushNotifications.checkPermissions();
     if (requestPermission && permission.receive !== "granted") {
       permission = await PushNotifications.requestPermissions();
     }
     if (permission.receive !== "granted") return "denied";
 
+    const tokenSaved = new Promise<boolean>((resolve) => {
+      if (pendingPushRegistration) {
+        window.clearTimeout(pendingPushRegistration.timeoutId);
+        pendingPushRegistration.resolve(false);
+      }
+
+      pendingPushRegistration = {
+        userId,
+        resolve,
+        timeoutId: window.setTimeout(() => finishPushRegistration(userId, false), 15_000),
+      };
+    });
     await PushNotifications.register();
-    return "enabled";
+    return (await tokenSaved) ? "enabled" : "error";
   } catch {
+    if (pendingPushRegistration?.userId === userId) {
+      const pending = pendingPushRegistration;
+      pendingPushRegistration = null;
+      window.clearTimeout(pending.timeoutId);
+      pending.resolve(false);
+    }
     return "error";
   }
 }
@@ -1144,7 +1201,10 @@ async function syncPushRegistration(userId: string, requestPermission = false): 
 async function clearPushRegistration(userId: string) {
   if (!supabase || !Capacitor.isNativePlatform()) return;
 
-  await supabase.from("push_devices").delete().eq("user_id", userId);
+  const token = localStorage.getItem(nativePushTokenStorageKey);
+  const deleteQuery = supabase.from("push_devices").delete().eq("user_id", userId);
+  await (token ? deleteQuery.eq("token", token) : deleteQuery);
+  localStorage.removeItem(nativePushTokenStorageKey);
   await PushNotifications.unregister().catch(() => undefined);
 }
 
