@@ -64,6 +64,15 @@ jobs:
       - name: Build web assets
         run: npm run build
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mobile runtime tests
+        run: npm run test:runtime
+
+      - name: Run Sites worker tests
+        run: npm run test:sites
+
       - name: Verify Supabase configuration in web bundle
         shell: bash
         run: |
