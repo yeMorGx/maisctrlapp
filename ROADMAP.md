@@ -36,6 +36,7 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Validação visual de senha forte no cadastro.
 - [x] Visão financeira local com entradas e saídas salvas no aparelho.
 - [x] Testes automatizados da senha e da persistência financeira local.
+- [x] Aviso de conexão offline no dashboard.
 - [ ] Teste completo em aparelho Android real.
 - [ ] AAB assinado para publicação.
 - [ ] Lançamento interno na Google Play.
