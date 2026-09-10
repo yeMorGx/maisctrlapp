@@ -438,18 +438,28 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
   const canAdvance = signupStep === 0 ? Boolean(name.trim()) : signupStep === 1 ? emailIsValid : password.length >= 8;
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    event.target.value = "";
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setAuthError("Escolha uma imagem para usar como foto de perfil.");
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setAuthError("Escolha uma imagem JPG, PNG ou WEBP.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAuthError("A foto precisa ter no máximo 5 MB.");
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => setAvatarPreview(typeof reader.result === "string" ? reader.result : "");
+    reader.onload = () => {
+      setAvatarPreview(typeof reader.result === "string" ? reader.result : "");
+      setAuthError("");
+    };
+    reader.onerror = () => setAuthError("Não foi possível ler essa foto.");
     reader.readAsDataURL(file);
-    setAuthError("");
   };
 
   const goToPreviousSignupStep = () => {
@@ -574,12 +584,12 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
                       ref={avatarInputRef}
                       className="signup-avatar-input"
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={handleAvatarChange}
                     />
                     <div className="signup-photo-copy">
                       <strong>{avatarPreview ? "Foto escolhida" : "Sua foto de perfil"}</strong>
-                      <span>{avatarPreview ? "Você pode trocar quando quiser." : "JPG ou PNG · opcional"}</span>
+                      <span>{avatarPreview ? "Você pode trocar quando quiser." : "JPG, PNG ou WEBP · até 5 MB · opcional"}</span>
                     </div>
                     <button className="signup-photo-button" type="button" onClick={() => avatarInputRef.current?.click()}>
                       {avatarPreview ? "Trocar foto" : "Escolher foto"}

@@ -69,3 +69,10 @@ When any text-entry control loses focus, dismiss the simulated keyboard. If the 
 - Fixed phone chrome should not animate with pushed screens. Screen content can animate; the status bar, camera cutout, and preview chrome should stay put.
 - Keep the keyboard below the home indicator/safe area layer in z-index, and above ordinary app UI while visible.
 - Keep the home indicator as the topmost safe-area layer in the z-index above everything else in the prototype.
+
+## Product Scope Decisions
+
+- The mobile app does not include a landing page, marketing timer, public pricing page, or testimonial section. Premium purchase entry points belong inside the authenticated app experience.
+- Do not treat the reference document's "Apple clean" visual direction, Outfit/Figtree typography, or native dark-mode requirement as mobile design requirements. Preserve the current MaisCtrl visual language unless the user explicitly changes it.
+- Premium payments are a future mobile-app workstream. Android is the first platform; evaluate Google Play Billing for digital subscriptions and Google Pay only as a wallet option where it is compatible with the chosen payment flow. For iOS, evaluate StoreKit/In-App Purchase for digital subscriptions and Apple Pay only for payment scenarios where it is appropriate and allowed.
+- Keep payment entitlement synchronization server-side and compatible with the existing Supabase/Stripe model. Never put payment secrets in the client or invent a checkout flow without validating store and provider requirements.
