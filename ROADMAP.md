@@ -35,6 +35,7 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] AAB Release candidato gerado pelo workflow com versionamento automático.
 - [x] Validação visual de senha forte no cadastro.
 - [x] Visão financeira local com entradas e saídas salvas no aparelho.
+- [x] Testes automatizados da senha e da persistência financeira local.
 - [ ] Teste completo em aparelho Android real.
 - [ ] AAB assinado para publicação.
 - [ ] Lançamento interno na Google Play.
