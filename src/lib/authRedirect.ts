@@ -9,6 +9,9 @@ function isLocalHost(hostname: string) {
 export function getAuthRedirectUrl(path = "/") {
   const runningInNativeApp = Capacitor.isNativePlatform();
   const runningLocally = typeof window !== "undefined" && isLocalHost(window.location.hostname);
+
+  if (runningInNativeApp) return "maisctrl://auth/callback";
+
   const baseUrl = runningInNativeApp || runningLocally ? publicSiteUrl : window.location.origin;
 
   return new URL(path, `${baseUrl.replace(/\/$/, "")}/`).toString();

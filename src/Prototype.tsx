@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import {
@@ -71,10 +72,77 @@ function useInitialAuthState() {
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
+    const authClient = supabase;
+    if (!authClient) return;
 
     let active = true;
-    supabase.auth.getSession().then(({ data, error }) => {
+    const authSubscription = authClient.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      setHasSession(Boolean(session));
+      setReady(true);
+    });
+
+    const applyAuthCallback = async (url: string) => {
+      if (!url.startsWith("maisctrl://auth/callback") || !active) return;
+
+      const callbackUrl = new URL(url);
+      const params = new URLSearchParams(callbackUrl.search);
+      if (callbackUrl.hash) {
+        new URLSearchParams(callbackUrl.hash.slice(1)).forEach((value, key) => params.set(key, value));
+      }
+
+      const errorDescription = params.get("error_description") || params.get("error");
+      if (errorDescription) {
+        console.warn("A confirmação do e-mail não foi concluída.", errorDescription);
+        return;
+      }
+
+      try {
+        const code = params.get("code");
+        if (code) {
+          const { error } = await authClient.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        } else {
+          const accessToken = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+          if (!accessToken || !refreshToken) return;
+
+          const { error } = await authClient.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+        }
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (error) {
+        console.warn("Não foi possível concluir a confirmação do e-mail no app.", error);
+      }
+    };
+
+    let cancelled = false;
+    let urlListener: Awaited<ReturnType<typeof App.addListener>> | undefined;
+
+    const setupDeepLinkListener = async () => {
+      if (!Capacitor.isNativePlatform()) return;
+
+      const listener = await App.addListener("appUrlOpen", ({ url }) => {
+        void applyAuthCallback(url);
+      });
+
+      if (cancelled) {
+        await listener.remove();
+        return;
+      }
+
+      urlListener = listener;
+      const launchUrl = await App.getLaunchUrl();
+      if (!cancelled && launchUrl?.url) await applyAuthCallback(launchUrl.url);
+    };
+
+    void setupDeepLinkListener();
+
+    authClient.auth.getSession().then(({ data, error }) => {
       if (!active) return;
       if (error) console.warn("Não foi possível restaurar a sessão mobile.", error);
       setHasSession(Boolean(data.session));
@@ -83,6 +151,9 @@ function useInitialAuthState() {
 
     return () => {
       active = false;
+      cancelled = true;
+      authSubscription.data.subscription.unsubscribe();
+      void urlListener?.remove();
     };
   }, []);
 

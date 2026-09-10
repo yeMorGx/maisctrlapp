@@ -3,5 +3,5 @@
     <string name="app_name">MaisCtrl</string>
     <string name="title_activity_main">MaisCtrl</string>
     <string name="package_name">com.maisctrl.app</string>
-    <string name="custom_url_scheme">com.maisctrl.app</string>
+    <string name="custom_url_scheme">maisctrl</string>
 </resources>
