@@ -30,6 +30,7 @@ import {
   useKeyboard,
 } from "./mobile";
 import { supabase, supabaseConfigured } from "./lib/supabase";
+import { getAuthRedirectUrl } from "./lib/authRedirect";
 
 const backgroundAsset = "/assets/auth-panels.png";
 const logoAsset = "/assets/logo.svg";
@@ -537,7 +538,7 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getAuthRedirectUrl("/dashboard"),
         data: { full_name: name },
       },
     });
@@ -699,7 +700,7 @@ function ResetScreen({ flow, initialEmail }: { flow: FlowControls; initialEmail:
 
     setIsSubmitting(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+      redirectTo: getAuthRedirectUrl("/auth"),
     });
 
     if (error) {
