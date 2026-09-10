@@ -57,6 +57,9 @@ test("finance entries stay available locally after navigation", async ({ page })
   }));
   await page.goto("/");
   await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  await page.context().setOffline(true);
+  await expect(page.getByRole("status")).toContainText("Você está offline");
+  await page.context().setOffline(false);
 
   await page.getByRole("button", { name: "Finanças" }).click();
   await expect(page.getByRole("heading", { name: "Finanças" })).toBeVisible();

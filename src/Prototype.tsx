@@ -2087,6 +2087,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
   const subscriptionState = useMobileSubscriptions();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [accountError, setAccountError] = useState("");
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
@@ -2095,6 +2096,16 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const [isNotificationSheetOpen, setIsNotificationSheetOpen] = useState(false);
   const [isEditProfileSheetOpen, setIsEditProfileSheetOpen] = useState(false);
   const notifications = buildNotifications(subscriptionState.subscriptions);
+
+  useEffect(() => {
+    const updateConnection = () => setIsOffline(!navigator.onLine);
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
+  }, []);
 
   const openAddSubscription = () => {
     keyboard.hide();
@@ -2159,6 +2170,11 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
 
       <MobileScroll className="dashboard-scroll">
         <main className="dashboard-content" style={{ minHeight: device.geometry.screen.height }}>
+          {isOffline && (
+            <div className="dashboard-offline-banner" role="status">
+              Você está offline. Os lançamentos locais continuam disponíveis neste aparelho.
+            </div>
+          )}
           {accountError && <p className="auth-error dashboard-account-error" role="alert">{accountError}</p>}
           {activeTab === "overview" ? (
             <DashboardOverview
