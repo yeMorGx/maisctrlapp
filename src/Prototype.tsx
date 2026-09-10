@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import {
@@ -33,6 +33,13 @@ import { supabase, supabaseConfigured } from "./lib/supabase";
 
 const backgroundAsset = "/assets/auth-panels.png";
 const logoAsset = "/assets/logo.svg";
+
+function useNativeSystemBars(style: SystemBarsStyle) {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void SystemBars.setStyle({ style }).catch(() => undefined);
+  }, [style]);
+}
 
 function authErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
@@ -219,6 +226,7 @@ function PasswordRules({ password }: { password: string }) {
 
 function SplashScreen({ flow }: { flow: FlowControls }) {
   const hasAdvanced = useRef(false);
+  useNativeSystemBars(SystemBarsStyle.Dark);
 
   useEffect(() => {
     if (hasAdvanced.current) return;
@@ -247,6 +255,8 @@ function SplashScreen({ flow }: { flow: FlowControls }) {
 }
 
 function WelcomeScreen({ flow }: { flow: FlowControls }) {
+  useNativeSystemBars(SystemBarsStyle.Dark);
+
   return (
     <div className="auth-screen" data-testid="welcome-screen">
       <AuthBackground />
@@ -355,6 +365,7 @@ function AuthSuccess({
 
 function LoginScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
+  useNativeSystemBars(SystemBarsStyle.Dark);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -436,6 +447,7 @@ function LoginScreen({ flow }: { flow: FlowControls }) {
 
 function SignupScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
+  useNativeSystemBars(SystemBarsStyle.Dark);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [signupStep, setSignupStep] = useState<0 | 1 | 2 | 3>(0);
   const [name, setName] = useState("");
@@ -669,6 +681,7 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
 
 function ResetScreen({ flow, initialEmail }: { flow: FlowControls; initialEmail: string }) {
   const keyboard = useKeyboard();
+  useNativeSystemBars(SystemBarsStyle.Dark);
   const [email, setEmail] = useState(initialEmail);
   const [submitted, setSubmitted] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -2149,6 +2162,7 @@ const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNod
 function DashboardScreen({ flow }: { flow: FlowControls }) {
   const { device } = useMobileDevice();
   const keyboard = useKeyboard();
+  useNativeSystemBars(SystemBarsStyle.Light);
   const subscriptionState = useMobileSubscriptions();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);

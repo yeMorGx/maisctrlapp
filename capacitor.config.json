@@ -3,6 +3,11 @@
   "appName": "MaisCtrl",
   "webDir": "dist/client",
   "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "hidden": false
+    },
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "banner", "list"]
     }
