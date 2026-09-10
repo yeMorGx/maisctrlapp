@@ -15,6 +15,9 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL || vars.VITE_SUPABASE_URL || vars.SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_ANON_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_ANON_KEY }}
 
     steps:
       - name: Checkout
@@ -35,8 +38,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Supabase configuration
+        shell: bash
+        run: |
+          if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]]; then
+            echo "::error::Configure the Supabase URL and publishable key as repository secrets or variables before publishing the Android APK."
+            exit 1
+          fi
+
+          if [[ "$VITE_SUPABASE_URL" != https://* ]]; then
+            echo "::error::VITE_SUPABASE_URL must use HTTPS."
+            exit 1
+          fi
+
       - name: Build web assets
         run: npm run build
+
+      - name: Verify Supabase configuration in web bundle
+        shell: bash
+        run: |
+          if ! grep -R -F -q "$VITE_SUPABASE_URL" dist; then
+            echo "::error::The Supabase URL was not embedded in the mobile web bundle."
+            exit 1
+          fi
+
+          if ! grep -R -F -q "$VITE_SUPABASE_PUBLISHABLE_KEY" dist; then
+            echo "::error::The Supabase publishable key was not embedded in the mobile web bundle."
+            exit 1
+          fi
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
