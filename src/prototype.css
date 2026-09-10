@@ -2211,6 +2211,59 @@ button.dashboard-list-item:focus-visible {
   white-space: nowrap;
 }
 
+.dashboard-profile-notifications {
+  margin-top: 17px;
+  padding-top: 17px;
+  border-top: 1px solid #f4f4f5;
+}
+
+.dashboard-profile-section-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 11px;
+}
+
+.dashboard-profile-section-heading strong {
+  color: #27272a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.dashboard-profile-section-heading small {
+  color: #71717a;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.dashboard-push-test-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dashboard-push-test-button svg {
+  width: 15px;
+  height: 15px;
+  color: #7c3aed;
+}
+
+.dashboard-push-feedback {
+  margin: 10px 2px 0;
+  color: #71717a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dashboard-push-feedback[data-tone="success"] {
+  color: #15803d;
+}
+
+.dashboard-push-feedback[data-tone="error"] {
+  color: #b42318;
+}
+
 .dashboard-profile-edit-button {
   display: flex;
   width: 100%;

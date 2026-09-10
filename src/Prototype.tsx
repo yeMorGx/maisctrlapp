@@ -1283,6 +1283,44 @@ async function syncPushRegistration(userId: string, requestPermission = false): 
   }
 }
 
+async function requestPushNotificationTest(): Promise<{ ok: boolean; message: string }> {
+  if (!Capacitor.isNativePlatform()) {
+    return { ok: false, message: "O teste está disponível somente no app instalado." };
+  }
+  if (!supabase) {
+    return { ok: false, message: "A conexão com o servidor ainda não foi configurada." };
+  }
+
+  try {
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (sessionError || !userId) {
+      return { ok: false, message: "Entre na sua conta para testar o push." };
+    }
+
+    const registrationStatus = await syncPushRegistration(userId, true);
+    if (registrationStatus !== "enabled") {
+      return { ok: false, message: "Não foi possível registrar este aparelho. Verifique a permissão de notificações." };
+    }
+
+    const { data: response, error } = await supabase.functions.invoke("send-push-notifications", {
+      body: { mode: "test" },
+    });
+    if (error) throw error;
+
+    const result = response as { devices?: number; sent?: number } | null;
+    if (!result || Number(result.sent ?? 0) < 1) {
+      return result?.devices === 0
+        ? { ok: false, message: "Este aparelho ainda não foi encontrado no servidor. Tente ativar as notificações novamente." }
+        : { ok: false, message: "O servidor recebeu o teste, mas não confirmou a entrega ao aparelho." };
+    }
+
+    return { ok: true, message: "Teste enviado. Bloqueie ou feche o app e aguarde alguns segundos pela notificação." };
+  } catch {
+    return { ok: false, message: "Não foi possível enviar o teste agora. Verifique a conexão e tente novamente." };
+  }
+}
+
 async function clearPushRegistration(userId: string) {
   if (!supabase || !Capacitor.isNativePlatform()) return;
 
@@ -2245,6 +2283,9 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const [isSubscriptionSheetOpen, setIsSubscriptionSheetOpen] = useState(false);
   const [isNotificationSheetOpen, setIsNotificationSheetOpen] = useState(false);
   const [isEditProfileSheetOpen, setIsEditProfileSheetOpen] = useState(false);
+  const [isTestingPush, setIsTestingPush] = useState(false);
+  const [pushTestFeedback, setPushTestFeedback] = useState("");
+  const [pushTestFeedbackTone, setPushTestFeedbackTone] = useState<"success" | "error">("success");
   const notifications = buildNotifications(subscriptionState.subscriptions);
 
   useEffect(() => {
@@ -2276,6 +2317,16 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const openEditProfile = () => {
     keyboard.hide();
     setIsEditProfileSheetOpen(true);
+  };
+
+  const testPushNotification = async () => {
+    if (isTestingPush) return;
+    setIsTestingPush(true);
+    setPushTestFeedback("");
+    const result = await requestPushNotificationTest();
+    setPushTestFeedbackTone(result.ok ? "success" : "error");
+    setPushTestFeedback(result.message);
+    setIsTestingPush(false);
   };
 
   const handleSubscriptionSheetChange = (open: boolean) => {
@@ -2344,6 +2395,10 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               onEditProfile={openEditProfile}
               onSignOut={signOut}
               isSigningOut={isSigningOut}
+              onTestPushNotification={testPushNotification}
+              isTestingPush={isTestingPush}
+              pushTestFeedback={pushTestFeedback}
+              pushTestFeedbackTone={pushTestFeedbackTone}
             />
           )}
         </main>
@@ -3060,6 +3115,10 @@ function DashboardModule({
   onEditProfile,
   onSignOut,
   isSigningOut,
+  onTestPushNotification,
+  isTestingPush,
+  pushTestFeedback,
+  pushTestFeedbackTone,
 }: {
   tab: Exclude<DashboardTab, "overview">;
   subscriptions: MobileSubscription[];
@@ -3075,6 +3134,10 @@ function DashboardModule({
   onEditProfile: () => void;
   onSignOut?: () => void;
   isSigningOut?: boolean;
+  onTestPushNotification: () => void;
+  isTestingPush: boolean;
+  pushTestFeedback: string;
+  pushTestFeedbackTone: "success" | "error";
 }) {
   const moduleCopy = {
     finances: {
@@ -3141,6 +3204,17 @@ function DashboardModule({
             <div className="dashboard-profile-row"><span>Plano atual</span><strong>{formatPlan(plan)}</strong></div>
             <div className="dashboard-profile-row"><span>Validade</span><strong>{formatPlanDetail(plan)}</strong></div>
             <div className="dashboard-profile-row"><span>Telefone</span><strong>{profile?.phone_number || "Não informado"}</strong></div>
+            <div className="dashboard-profile-notifications">
+              <div className="dashboard-profile-section-heading">
+                <strong>Notificações do celular</strong>
+                <small>Confira se o push deste aparelho está funcionando.</small>
+              </div>
+              <button className="dashboard-secondary-button dashboard-push-test-button" type="button" onClick={onTestPushNotification} disabled={isTestingPush}>
+                <BellIcon aria-hidden="true" />
+                {isTestingPush ? "Enviando teste..." : "Testar notificação push"}
+              </button>
+              {pushTestFeedback && <p className="dashboard-push-feedback" data-tone={pushTestFeedbackTone} role="status">{pushTestFeedback}</p>}
+            </div>
             <button className="dashboard-danger-button" type="button" onClick={onSignOut} disabled={isSigningOut}>
               {isSigningOut ? "Saindo..." : "Sair da conta"}
             </button>

@@ -4,6 +4,7 @@ import { importPKCS8, SignJWT } from "npm:jose@6.1.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const reminderDays = [7, 3, 2, 1, 0];
@@ -168,7 +169,18 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const expectedSecret = Deno.env.get("CRON_SECRET");
-  if (!expectedSecret || request.headers.get("x-cron-secret") !== expectedSecret) {
+  const cronAuthorized = Boolean(expectedSecret && request.headers.get("x-cron-secret") === expectedSecret);
+  let requestBody: { mode?: string } = {};
+  if (request.method === "POST") {
+    try {
+      requestBody = await request.json() as { mode?: string };
+    } catch {
+      requestBody = {};
+    }
+  }
+
+  const isTestRequest = requestBody.mode === "test";
+  if (!cronAuthorized && !isTestRequest) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
@@ -178,20 +190,73 @@ Deno.serve(async (request) => {
     if (!supabaseUrl || !serviceRoleKey) throw new Error("Variáveis do Supabase não configuradas");
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+    let testUserId: string | null = null;
+    if (isTestRequest && !cronAuthorized) {
+      const authorization = request.headers.get("Authorization");
+      const accessToken = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
+      if (!accessToken) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+      if (userError || !userData.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      testUserId = userData.user.id;
+    }
+
     const today = localDate();
+    const devicesQuery = supabase.from("push_devices").select("id,user_id,token,platform").eq("enabled", true);
+    if (testUserId) devicesQuery.eq("user_id", testUserId);
+    const devicesResult = await devicesQuery;
+    if (devicesResult.error) throw devicesResult.error;
+
+    const devices = devicesResult.data as Device[];
+    if (testUserId) {
+      const testReminder: Reminder = {
+        subscription: {
+          id: "push-test",
+          user_id: testUserId,
+          name: "MaisCtrl",
+          renewal_date: today,
+          trial_end_date: null,
+          is_active: true,
+        },
+        kind: "renewal",
+        dueDate: today,
+        days: 0,
+        title: "Teste de notificação push recebido",
+      };
+      let sent = 0;
+      let failed = 0;
+      let disabled = 0;
+
+      for (const device of devices) {
+        const result = await sendToDevice(device, testReminder);
+        if (result.invalid) {
+          await supabase.from("push_devices").update({ enabled: false }).eq("id", device.id);
+          disabled++;
+        }
+        if (result.ok) sent++;
+        else {
+          failed++;
+          console.error("Push test failed", { deviceId: device.id, detail: result.detail });
+        }
+      }
+
+      return new Response(JSON.stringify({ mode: "test", devices: devices.length, sent, failed, disabled }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const limitDate = addDays(today, 7);
     const subscriptionFields = "id,user_id,name,renewal_date,trial_end_date,is_active";
-    const [renewalResult, trialResult, devicesResult] = await Promise.all([
+    const [renewalResult, trialResult] = await Promise.all([
       supabase.from("subscriptions").select(subscriptionFields).eq("is_active", true).gte("renewal_date", today).lte("renewal_date", limitDate),
       supabase.from("subscriptions").select(subscriptionFields).eq("is_active", true).gte("trial_end_date", today).lte("trial_end_date", limitDate),
-      supabase.from("push_devices").select("id,user_id,token,platform").eq("enabled", true),
     ]);
     if (renewalResult.error) throw renewalResult.error;
     if (trialResult.error) throw trialResult.error;
-    if (devicesResult.error) throw devicesResult.error;
 
     const subscriptions = [...new Map([...renewalResult.data, ...trialResult.data].map((subscription) => [subscription.id, subscription])).values()] as Subscription[];
-    const devices = devicesResult.data as Device[];
     const devicesByUser = new Map<string, Device[]>();
     for (const device of devices) devicesByUser.set(device.user_id, [...(devicesByUser.get(device.user_id) ?? []), device]);
 

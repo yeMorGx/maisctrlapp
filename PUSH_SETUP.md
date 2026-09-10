@@ -5,7 +5,7 @@ O código do app registra tokens nativos no Supabase e a Edge Function `send-pus
 ## Estado conferido
 
 - `push_devices` e `push_notification_deliveries` existem com RLS ativo.
-- A Edge Function está ativa e protegida por `x-cron-secret`.
+- A Edge Function está ativa; o cron usa `x-cron-secret` e o teste manual exige uma sessão autenticada.
 - O cron `maisctrl-send-push-notifications` está ativo a cada 15 minutos.
 - O timeout da chamada do cron foi ajustado para 30 segundos.
 - O último teste da função retornou `200`, sem dispositivos cadastrados.
@@ -47,7 +47,9 @@ Sem essas credenciais, o navegador continua funcionando e o app mantém os alert
 3. Abra o sino de notificações e toque em **Ativar**.
 4. Aceite a permissão de notificações do Android.
 5. Confirme que o dispositivo aparece em `push_devices`.
-6. Cadastre uma assinatura com vencimento hoje, amanhã, em 2, 3 ou 7 dias.
-7. Mantenha o app fechado e aguarde o próximo ciclo de 15 minutos.
+6. Em **Perfil**, toque em **Testar notificação push**.
+7. Bloqueie ou feche o app e confirme a chegada do aviso de teste.
+8. Cadastre uma assinatura com vencimento hoje, amanhã, em 2, 3 ou 7 dias.
+9. Mantenha o app fechado e aguarde o próximo ciclo de 15 minutos.
 
 Se o dispositivo for salvo, mas o push não chegar, o próximo diagnóstico é conferir as credenciais do Firebase na Edge Function e o log de entrega do FCM.
