@@ -1762,8 +1762,11 @@ function EditProfileSheet({
   onSaved: () => void;
 }) {
   const keyboard = useKeyboard();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -1771,12 +1774,40 @@ function EditProfileSheet({
     if (!open) return;
     setFullName(profile?.full_name ?? "");
     setPhoneNumber(profile?.phone_number ?? "");
+    setAvatarFile(null);
+    setAvatarPreview(profile?.avatar_url ?? "");
     setError("");
   }, [open, profile]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) keyboard.hide();
     onOpenChange(nextOpen);
+  };
+
+  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Escolha uma imagem JPG, PNG ou WEBP.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A foto precisa ter no máximo 5 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarFile(file);
+      setAvatarPreview(typeof reader.result === "string" ? reader.result : "");
+      setError("");
+    };
+    reader.onerror = () => setError("Não foi possível ler essa foto.");
+    reader.readAsDataURL(file);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1795,32 +1826,51 @@ function EditProfileSheet({
     }
 
     setIsSaving(true);
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !sessionData.session) {
-      setError("Sua sessão expirou. Entre novamente para atualizar o perfil.");
+    let uploadedPath = "";
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        setError("Sua sessão expirou. Entre novamente para atualizar o perfil.");
+        return;
+      }
+
+      const userId = sessionData.session.user.id;
+      let avatarUrl = profile?.avatar_url ?? null;
+
+      if (avatarFile) {
+        const extension = avatarFile.type === "image/png" ? "png" : avatarFile.type === "image/webp" ? "webp" : "jpg";
+        uploadedPath = `${userId}/${Date.now()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(uploadedPath, avatarFile, { contentType: avatarFile.type, upsert: false });
+
+        if (uploadError) throw uploadError;
+        avatarUrl = supabase.storage.from("avatars").getPublicUrl(uploadedPath).data.publicUrl;
+      }
+
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          phone_number: phoneNumber.trim() || null,
+          ...(avatarFile ? { avatar_url: avatarUrl } : {}),
+        })
+        .eq("id", userId)
+        .select("full_name,email,phone_number,avatar_url")
+        .maybeSingle();
+
+      if (updateError || !updatedProfile) throw updateError ?? new Error("Profile update returned no row");
+
+      onSaved();
+      handleOpenChange(false);
+    } catch (submitError) {
+      if (uploadedPath) await supabase.storage.from("avatars").remove([uploadedPath]);
+      console.error("Não foi possível atualizar o perfil mobile.", submitError);
+      setError(avatarFile ? "Não foi possível atualizar seus dados e sua foto." : "Não foi possível atualizar seu perfil agora.");
+    } finally {
       setIsSaving(false);
-      return;
     }
-
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName.trim(),
-        phone_number: phoneNumber.trim() || null,
-      })
-      .eq("id", sessionData.session.user.id)
-      .select("full_name,email,phone_number,avatar_url")
-      .maybeSingle();
-
-    if (updateError || !updatedProfile) {
-      setError("Não foi possível atualizar seu perfil agora.");
-      setIsSaving(false);
-      return;
-    }
-
-    onSaved();
-    setIsSaving(false);
-    handleOpenChange(false);
   };
 
   return (
@@ -1832,6 +1882,31 @@ function EditProfileSheet({
       snap={0.62}
     >
       <form className="subscription-form profile-form" onSubmit={submit}>
+        <div className="profile-avatar-editor">
+          <button
+            className="profile-avatar-picker"
+            type="button"
+            aria-label={avatarPreview ? "Trocar foto de perfil" : "Escolher foto de perfil"}
+            onClick={() => avatarInputRef.current?.click()}
+          >
+            {avatarPreview ? <img src={avatarPreview} alt="Prévia da foto de perfil" /> : <PersonIcon aria-hidden="true" />}
+          </button>
+          <input
+            ref={avatarInputRef}
+            className="signup-avatar-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleAvatarChange}
+          />
+          <div className="profile-avatar-copy">
+            <strong>{avatarFile ? "Foto selecionada" : "Foto de perfil"}</strong>
+            <span>JPG, PNG ou WEBP · até 5 MB</span>
+          </div>
+          <button className="profile-avatar-change" type="button" onClick={() => avatarInputRef.current?.click()}>
+            {avatarFile ? "Trocar foto" : "Escolher foto"}
+          </button>
+        </div>
+
         <label className="mobile-field" htmlFor="profile-full-name">
           <span className="field-label">Nome completo</span>
           <span className="input-shell">
