@@ -8,6 +8,7 @@ on:
       - AGENTS.md
       - design-qa.md
       - supabase/SETUP.md
+      - SUPABASE-PASSO-A-PASSO.md
   workflow_dispatch:
 
 concurrency:
