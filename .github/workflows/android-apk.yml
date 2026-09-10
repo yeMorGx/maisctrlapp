@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: android-latest
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -54,14 +58,19 @@ jobs:
       - name: Prepare APK filename
         run: cp android/app/build/outputs/apk/debug/app-debug.apk maisctrl.apk
 
+      - name: Generate APK checksum
+        run: sha256sum maisctrl.apk > maisctrl.apk.sha256
+
       - name: Publish APK download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
           name: MaisCtrl Android — versão de teste
-          body: "APK de teste mais recente do MaisCtrl para Android."
+          body: "APK de teste mais recente do MaisCtrl para Android. O arquivo maisctrl.apk.sha256 permite conferir a integridade do download."
           prerelease: true
           make_latest: false
-          files: maisctrl.apk
+          files: |
+            maisctrl.apk
+            maisctrl.apk.sha256
           fail_on_unmatched_files: true
           overwrite_files: true
