@@ -18,6 +18,10 @@ jobs:
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL || vars.VITE_SUPABASE_URL || vars.SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_ANON_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_ANON_KEY }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -73,9 +77,27 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
+      - name: Prepare optional release signing
+        if: env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != ''
+        shell: bash
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/maisctrl-upload.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/maisctrl-upload.keystore" >> "$GITHUB_ENV"
+
+      - name: Build release candidate AAB
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=0.1.${{ github.run_number }}
+
+      - name: Upload release candidate AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: maisctrl-android-release-candidate
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=0.1.${{ github.run_number }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
