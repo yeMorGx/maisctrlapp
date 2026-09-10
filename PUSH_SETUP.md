@@ -1,6 +1,14 @@
 # Push real do MaisCtrl
 
-O código do app já registra tokens nativos no Supabase e a Edge Function `send-push-notifications` envia os lembretes de renovação. Para ativar o envio real, ainda é necessário configurar as credenciais das lojas e do provedor de push.
+O código do app registra tokens nativos no Supabase e a Edge Function `send-push-notifications` envia os lembretes de renovação. A estrutura remota, a função e o agendamento do projeto `wdmkzljxjjjvzofrpeuk` já foram conferidos; falta registrar um aparelho real e validar a entrega final.
+
+## Estado conferido
+
+- `push_devices` e `push_notification_deliveries` existem com RLS ativo.
+- A Edge Function está ativa e protegida por `x-cron-secret`.
+- O cron `maisctrl-send-push-notifications` está ativo a cada 15 minutos.
+- O timeout da chamada do cron foi ajustado para 30 segundos.
+- O último teste da função retornou `200`, sem dispositivos cadastrados.
 
 ## Banco e função
 
@@ -16,7 +24,7 @@ O código do app já registra tokens nativos no Supabase e a Edge Function `send
    - `APNS_BUNDLE_ID` — `com.maisctrl.app`
    - `APNS_ENVIRONMENT` — `sandbox` durante testes ou `production` na publicação
 
-4. Agende a função uma vez por dia, enviando o header `x-cron-secret` com o mesmo valor de `CRON_SECRET`.
+4. O agendamento do projeto já está configurado para rodar a cada 15 minutos, enviando o header `x-cron-secret` com o mesmo valor de `CRON_SECRET`.
 
 ## Android
 
@@ -31,3 +39,15 @@ O código do app já registra tokens nativos no Supabase e a Edge Function `send
 3. Abra o projeto no Xcode, selecione o Team de assinatura e habilite Push Notifications em Signing & Capabilities.
 
 Sem essas credenciais, o navegador continua funcionando e o app mantém os alertas locais já implementados, mas o push remoto não será entregue.
+
+## Teste final no aparelho
+
+1. Instale a build Android `0.1.22` pelo endereço oficial de download.
+2. Entre em uma conta no app.
+3. Abra o sino de notificações e toque em **Ativar**.
+4. Aceite a permissão de notificações do Android.
+5. Confirme que o dispositivo aparece em `push_devices`.
+6. Cadastre uma assinatura com vencimento hoje, amanhã, em 2, 3 ou 7 dias.
+7. Mantenha o app fechado e aguarde o próximo ciclo de 15 minutos.
+
+Se o dispositivo for salvo, mas o push não chegar, o próximo diagnóstico é conferir as credenciais do Firebase na Edge Function e o log de entrega do FCM.
