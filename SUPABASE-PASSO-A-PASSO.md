@@ -119,8 +119,8 @@ No painel do Supabase:
 1. Abra Authentication → Providers.
 2. Mantenha Email habilitado.
 3. Defina se a confirmação de e-mail será obrigatória.
-4. Em Authentication → URL Configuration, adicione https://mais-ctrl.vercel.app.
-5. Adicione o deep link Android quando ele for definido.
+4. Em Authentication → URL Configuration, use https://mais-ctrl.vercel.app como Site URL.
+5. Em Redirect URLs, autorize https://mais-ctrl.vercel.app/dashboard e maisctrl://auth/callback.
 6. Crie uma conta de teste.
 
 O cadastro deve criar o usuário em auth.users e os registros de apoio em profiles e user_subscriptions pelos triggers.
