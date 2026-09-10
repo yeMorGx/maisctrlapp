@@ -814,11 +814,19 @@ function readLocalTransactions() {
   }
 }
 
+function writeLocalTransactions(transactions: LocalTransaction[]) {
+  try {
+    window.localStorage.setItem(localFinanceStorageKey, JSON.stringify(transactions));
+  } catch {
+    // O estado continua disponível durante a sessão, mesmo quando o storage está indisponível.
+  }
+}
+
 function useLocalFinance() {
   const [transactions, setTransactions] = useState<LocalTransaction[]>(readLocalTransactions);
 
   useEffect(() => {
-    window.localStorage.setItem(localFinanceStorageKey, JSON.stringify(transactions));
+    writeLocalTransactions(transactions);
   }, [transactions]);
 
   const addTransaction = (transaction: Omit<LocalTransaction, "id">) => {
