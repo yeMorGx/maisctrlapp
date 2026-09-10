@@ -305,8 +305,8 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 - [x] Atualizar o APK do site para a release Android atual.
 - [ ] Automatizar a atualização do APK do site a cada nova release.
 - [ ] Exibir versão e data do APK.
-- [ ] Exibir instruções de instalação Android.
-- [ ] Exibir aviso de versão de teste enquanto estiver fora da Play Store.
+- [x] Exibir instruções de instalação Android.
+- [x] Exibir aviso de versão de teste enquanto estiver fora da Play Store.
 
 ## 17. GitHub Actions
 
