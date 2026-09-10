@@ -9,6 +9,8 @@ android {
     def releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
     def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
     def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+    def appVersionCode = (project.findProperty("VERSION_CODE") ?: "1").toString().toInteger()
+    def appVersionName = (project.findProperty("VERSION_NAME") ?: "1.0").toString()
 
     if (hasReleaseSigning) {
         signingConfigs {
@@ -25,8 +27,8 @@ android {
         applicationId "com.maisctrl.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (project.findProperty("VERSION_CODE") ?: "1").toInteger()
-        versionName (project.findProperty("VERSION_NAME") ?: "1.0").toString()
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

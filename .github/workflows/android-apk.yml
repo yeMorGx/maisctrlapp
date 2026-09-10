@@ -3,6 +3,10 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - ROADMAP.md
+      - AGENTS.md
+      - design-qa.md
   workflow_dispatch:
 
 concurrency:
