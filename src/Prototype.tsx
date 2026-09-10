@@ -44,6 +44,20 @@ function authErrorMessage(error: unknown) {
   return message || "Não foi possível concluir agora. Tente novamente.";
 }
 
+function passwordRules(password: string) {
+  return {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    symbol: /[^A-Za-z0-9]/.test(password),
+  };
+}
+
+function isStrongPassword(password: string) {
+  return Object.values(passwordRules(password)).every(Boolean);
+}
+
 function useInitialAuthState() {
   const [ready, setReady] = useState(!supabaseConfigured);
   const [hasSession, setHasSession] = useState(false);
@@ -178,6 +192,28 @@ function PasswordField({
         </button>
       </span>
     </label>
+  );
+}
+
+function PasswordRules({ password }: { password: string }) {
+  const rules = passwordRules(password);
+  const items = [
+    [rules.length, "8 caracteres"],
+    [rules.uppercase, "uma letra maiúscula"],
+    [rules.lowercase, "uma letra minúscula"],
+    [rules.number, "um número"],
+    [rules.symbol, "um símbolo"],
+  ] as const;
+
+  return (
+    <ul className="password-rules" aria-label="Requisitos da senha">
+      {items.map(([valid, label]) => (
+        <li key={label} data-valid={valid ? "true" : "false"}>
+          <CheckCircledIcon aria-hidden="true" />
+          <span>{label}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -435,7 +471,7 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
   ][signupStep];
 
   const emailIsValid = email.includes("@") && email.includes(".");
-  const canAdvance = signupStep === 0 ? Boolean(name.trim()) : signupStep === 1 ? emailIsValid : password.length >= 8;
+  const canAdvance = signupStep === 0 ? Boolean(name.trim()) : signupStep === 1 ? emailIsValid : isStrongPassword(password);
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.target.value = "";
@@ -567,7 +603,10 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
                 )}
 
                 {signupStep === 2 && (
-                  <PasswordField id="signup-password" label="Crie uma senha" value={password} onChange={setPassword} />
+                  <>
+                    <PasswordField id="signup-password" label="Crie uma senha" value={password} onChange={setPassword} />
+                    <PasswordRules password={password} />
+                  </>
                 )}
 
                 {signupStep === 3 && (
@@ -606,7 +645,7 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
                     Continuar
                   </button>
                 ) : (
-                  <button className="pill-button" type="submit" disabled={!name || !emailIsValid || password.length < 8 || isSubmitting}>
+                  <button className="pill-button" type="submit" disabled={!name || !emailIsValid || !isStrongPassword(password) || isSubmitting}>
                     {isSubmitting ? "Criando..." : "Criar minha conta"}
                   </button>
                 )}
@@ -705,7 +744,7 @@ function ResetScreen({ flow, initialEmail }: { flow: FlowControls; initialEmail:
   );
 }
 
-type DashboardTab = "overview" | "subscriptions" | "calendar" | "profile";
+type DashboardTab = "overview" | "finances" | "subscriptions" | "calendar" | "profile";
 
 type MobileSubscription = {
   id: string;
@@ -730,6 +769,68 @@ type MobilePlan = {
   status: string;
   current_period_end: string | null;
 };
+
+type LocalTransactionType = "income" | "expense";
+
+type LocalTransaction = {
+  id: string;
+  type: LocalTransactionType;
+  description: string;
+  category: string;
+  value: number;
+  date: string;
+};
+
+const localFinanceStorageKey = "maisctrl-local-finance-v1";
+
+function localId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function readLocalTransactions() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = window.localStorage.getItem(localFinanceStorageKey);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((item): item is LocalTransaction => {
+      if (!item || typeof item !== "object") return false;
+      const transaction = item as Partial<LocalTransaction>;
+      return (
+        typeof transaction.id === "string" &&
+        (transaction.type === "income" || transaction.type === "expense") &&
+        typeof transaction.description === "string" &&
+        typeof transaction.category === "string" &&
+        typeof transaction.value === "number" &&
+        Number.isFinite(transaction.value) &&
+        typeof transaction.date === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function useLocalFinance() {
+  const [transactions, setTransactions] = useState<LocalTransaction[]>(readLocalTransactions);
+
+  useEffect(() => {
+    window.localStorage.setItem(localFinanceStorageKey, JSON.stringify(transactions));
+  }, [transactions]);
+
+  const addTransaction = (transaction: Omit<LocalTransaction, "id">) => {
+    setTransactions((current) => [{ ...transaction, id: localId() }, ...current]);
+  };
+
+  const removeTransaction = (id: string) => {
+    setTransactions((current) => current.filter((transaction) => transaction.id !== id));
+  };
+
+  return { transactions, addTransaction, removeTransaction };
+}
 
 type MobileNotification = {
   id: string;
@@ -1967,6 +2068,7 @@ function EditProfileSheet({
 
 const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNode }> = [
   { id: "overview", label: "Início", icon: <BarChartIcon aria-hidden="true" /> },
+  { id: "finances", label: "Finanças", icon: <DotsHorizontalIcon aria-hidden="true" /> },
   { id: "subscriptions", label: "Assinaturas", icon: <CardStackIcon aria-hidden="true" /> },
   { id: "calendar", label: "Calendário", icon: <CalendarIcon aria-hidden="true" /> },
   { id: "profile", label: "Perfil", icon: <PersonIcon aria-hidden="true" /> },
@@ -2421,6 +2523,212 @@ function DashboardCalendar({
   );
 }
 
+function LocalTransactionSheet({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (transaction: Omit<LocalTransaction, "id">) => void;
+}) {
+  const keyboard = useKeyboard();
+  const [type, setType] = useState<LocalTransactionType>("expense");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Geral");
+  const [value, setValue] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => keyboard.hide(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  const reset = () => {
+    setType("expense");
+    setDescription("");
+    setCategory("Geral");
+    setValue("");
+    setDate(new Date().toISOString().slice(0, 10));
+    setError("");
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      keyboard.hide();
+      reset();
+    }
+    onOpenChange(nextOpen);
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    keyboard.hide();
+    const parsedValue = Number(value.replace(",", "."));
+
+    if (!description.trim() || !Number.isFinite(parsedValue) || parsedValue <= 0 || !date) {
+      setError("Preencha descrição, valor e data.");
+      return;
+    }
+
+    onCreated({ type, description: description.trim(), category: category.trim() || "Geral", value: parsedValue, date });
+    handleOpenChange(false);
+  };
+
+  return (
+    <BottomSheet
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Novo lançamento"
+      description="Organize uma entrada ou saída enquanto o banco não está conectado."
+      snap={0.68}
+    >
+      <form className="subscription-form finance-entry-form" onSubmit={submit}>
+        <div className="finance-type-switch" role="group" aria-label="Tipo de lançamento">
+          <button className="finance-type-button" data-active={type === "expense"} type="button" onClick={() => setType("expense")}>Saída</button>
+          <button className="finance-type-button" data-active={type === "income"} type="button" onClick={() => setType("income")}>Entrada</button>
+        </div>
+
+        <label className="mobile-field" htmlFor="finance-description">
+          <span className="field-label">Descrição</span>
+          <span className="input-shell">
+            <KeyboardInput
+              id="finance-description"
+              value={description}
+              placeholder={type === "expense" ? "Ex.: Mercado" : "Ex.: Salário"}
+              autoCapitalize="sentences"
+              autoCorrect="off"
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setError("");
+              }}
+            />
+          </span>
+        </label>
+
+        <label className="mobile-field" htmlFor="finance-value">
+          <span className="field-label">Valor</span>
+          <span className="input-shell">
+            <span className="input-prefix">R$</span>
+            <KeyboardInput
+              id="finance-value"
+              type="text"
+              inputMode="decimal"
+              value={value}
+              placeholder="0,00"
+              onChange={(event) => {
+                setValue(event.target.value);
+                setError("");
+              }}
+            />
+          </span>
+        </label>
+
+        <div className="subscription-form-grid">
+          <label className="mobile-field" htmlFor="finance-category">
+            <span className="field-label">Categoria</span>
+            <span className="input-shell">
+              <KeyboardInput id="finance-category" value={category} placeholder="Geral" onChange={(event) => setCategory(event.target.value)} />
+            </span>
+          </label>
+          <label className="mobile-field" htmlFor="finance-date">
+            <span className="field-label">Data</span>
+            <span className="input-shell">
+              <KeyboardInput id="finance-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </span>
+          </label>
+        </div>
+
+        {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}
+
+        <button className="dashboard-primary-button subscription-submit" type="submit">Salvar lançamento</button>
+      </form>
+    </BottomSheet>
+  );
+}
+
+function DashboardFinance() {
+  const { transactions, addTransaction, removeTransaction } = useLocalFinance();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [view, setView] = useState<"overview" | "entries">("overview");
+  const income = transactions.filter((transaction) => transaction.type === "income").reduce((total, transaction) => total + transaction.value, 0);
+  const expenses = transactions.filter((transaction) => transaction.type === "expense").reduce((total, transaction) => total + transaction.value, 0);
+  const balance = income - expenses;
+  const recentTransactions = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+
+  return (
+    <>
+      <section className="finance-balance-card" aria-label="Resumo financeiro local">
+        <div className="finance-balance-heading">
+          <div>
+            <span className="dashboard-eyebrow">Resumo local</span>
+            <strong>Saldo estimado</strong>
+          </div>
+          <span className="finance-local-badge">Neste aparelho</span>
+        </div>
+        <strong className="finance-balance-value">{formatCurrency(balance)}</strong>
+        <span className="dashboard-card-caption">Os lançamentos ficam salvos neste aparelho até o banco ser conectado.</span>
+      </section>
+
+      <div className="finance-metric-grid">
+        <div className="finance-metric-card" data-tone="green"><span>Entradas</span><strong>{formatCurrency(income)}</strong></div>
+        <div className="finance-metric-card" data-tone="red"><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div>
+      </div>
+
+      <button className="dashboard-primary-button finance-add-button" type="button" onClick={() => setIsSheetOpen(true)}>
+        <PlusIcon aria-hidden="true" />
+        Novo lançamento
+      </button>
+
+      <div className="finance-view-switch" role="tablist" aria-label="Conteúdo financeiro">
+        <button type="button" role="tab" aria-selected={view === "overview"} data-active={view === "overview"} onClick={() => setView("overview")}>Visão geral</button>
+        <button type="button" role="tab" aria-selected={view === "entries"} data-active={view === "entries"} onClick={() => setView("entries")}>Lançamentos</button>
+      </div>
+
+      {view === "overview" ? (
+        <section className="finance-tools-card">
+          <div className="dashboard-section-title-row">
+            <div>
+              <span className="dashboard-eyebrow">Próximas áreas</span>
+              <h2>Seu dinheiro, por partes</h2>
+            </div>
+          </div>
+          <div className="finance-tools-grid">
+            <div className="finance-tool-card"><CardStackIcon aria-hidden="true" /><strong>Cartões</strong><span>Limites e faturas</span></div>
+            <div className="finance-tool-card"><ArrowLeftIcon aria-hidden="true" /><strong>Dívidas</strong><span>Saldo devedor</span></div>
+            <div className="finance-tool-card"><CalendarIcon aria-hidden="true" /><strong>Parcelas</strong><span>Progresso mensal</span></div>
+            <div className="finance-tool-card"><BarChartIcon aria-hidden="true" /><strong>Investimentos</strong><span>Patrimônio e metas</span></div>
+          </div>
+        </section>
+      ) : (
+        <section className="dashboard-list-card finance-entries-card">
+          <div className="dashboard-section-title-row">
+            <div>
+              <span className="dashboard-eyebrow">Histórico local</span>
+              <h2>Últimos lançamentos</h2>
+            </div>
+            <span className="dashboard-calendar-count">{transactions.length}</span>
+          </div>
+          {recentTransactions.length > 0 ? recentTransactions.map((transaction) => (
+            <div className="finance-entry-row" key={transaction.id}>
+              <span className="dashboard-list-avatar" data-tone={transaction.type === "income" ? "green" : "red"}>{transaction.type === "income" ? "+" : "−"}</span>
+              <span className="dashboard-list-copy"><strong>{transaction.description}</strong><small>{transaction.category} · {formatShortDate(transaction.date)}</small></span>
+              <span className="finance-entry-amount" data-type={transaction.type}>{transaction.type === "income" ? "+" : "−"}{formatCurrency(transaction.value)}</span>
+              <button className="finance-entry-delete" type="button" onClick={() => removeTransaction(transaction.id)}>Excluir</button>
+            </div>
+          )) : (
+            <div className="dashboard-data-state"><strong>Nenhum lançamento ainda</strong><span>Comece registrando uma entrada ou saída.</span></div>
+          )}
+        </section>
+      )}
+
+      <LocalTransactionSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} onCreated={addTransaction} />
+    </>
+  );
+}
+
 function DashboardModule({
   tab,
   subscriptions,
@@ -2453,6 +2761,12 @@ function DashboardModule({
   isSigningOut?: boolean;
 }) {
   const moduleCopy = {
+    finances: {
+      eyebrow: "Seu dinheiro",
+      title: "Finanças",
+      description: "Um lugar simples para enxergar entradas, saídas e próximos controles.",
+      action: "Novo lançamento",
+    },
     subscriptions: {
       eyebrow: "Seu catálogo",
       title: "Assinaturas",
@@ -2482,14 +2796,16 @@ function DashboardModule({
         <button className="dashboard-secondary-button dashboard-profile-edit-button" type="button" onClick={onEditProfile}>
           Editar perfil
         </button>
-      ) : (
+      ) : tab === "finances" ? null : (
         <button className="dashboard-primary-button" type="button" onClick={onAddSubscription}>
           <PlusIcon aria-hidden="true" />
           {moduleCopy.action}
         </button>
       )}
 
-      {tab === "calendar" ? (
+      {tab === "finances" ? (
+        <DashboardFinance />
+      ) : tab === "calendar" ? (
         <DashboardCalendar
           subscriptions={subscriptions}
           isLoading={isLoading}

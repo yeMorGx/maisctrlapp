@@ -33,6 +33,8 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Variáveis públicas do Supabase configuradas no GitHub Actions.
 - [x] APK novo gerado pelo workflow após a configuração.
 - [x] AAB Release candidato gerado pelo workflow com versionamento automático.
+- [x] Validação visual de senha forte no cadastro.
+- [x] Visão financeira local com entradas e saídas salvas no aparelho.
 - [ ] Teste completo em aparelho Android real.
 - [ ] AAB assinado para publicação.
 - [ ] Lançamento interno na Google Play.
@@ -95,7 +97,7 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Logout.
 - [x] Mensagens de erro em português.
 - [x] Foto de perfil no cadastro.
-- [ ] Senha com maiúscula, minúscula, número e símbolo.
+- [x] Senha com maiúscula, minúscula, número e símbolo.
 - [ ] Verificação de senha vazada via backend.
 - [ ] Confirmação de e-mail em aparelho real.
 - [ ] Fluxo de expiração e renovação de sessão.
@@ -109,6 +111,7 @@ O Premium será apresentado dentro do app autenticado. Informações de preço e
 - [x] Visão geral inicial.
 - [x] Cards de assinaturas, pagamentos e alertas.
 - [x] Navegação para assinaturas, calendário e perfil.
+- [x] Primeiro painel financeiro local para testar entradas e saídas sem backend.
 - [ ] Receita total.
 - [ ] Despesas totais.
 - [ ] Saldo.
