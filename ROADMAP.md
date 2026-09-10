@@ -305,6 +305,7 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 - [x] Checksum conferido.
 - [x] Deploy do Vercel validado.
 - [x] Atualizar o APK do site para a release Android atual.
+- [x] Script local para sincronizar APK, checksum e metadados da última release.
 - [ ] Automatizar a atualização do APK do site a cada nova release.
 - [x] Exibir versão e data do APK.
 - [x] Exibir instruções de instalação Android.
