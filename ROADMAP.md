@@ -280,14 +280,14 @@ Google Pay é uma carteira complementar. Não deve substituir o Google Play Bill
 
 ## 15. Android e publicação
 
-- [ ] Conferir package ID.
-- [ ] Conferir nome e ícone.
-- [ ] Configurar `google-services.json`.
-- [ ] Configurar Firebase.
-- [ ] Configurar permissões.
-- [ ] Configurar notificações.
-- [ ] Manter keystore fora do repositório.
-- [ ] Gerar APK de teste.
+- [x] Conferir package ID.
+- [x] Conferir nome e ícone.
+- [x] Configurar `google-services.json`.
+- [x] Configurar Firebase.
+- [x] Configurar permissões.
+- [x] Configurar notificações.
+- [x] Manter keystore fora do repositório.
+- [x] Gerar APK de teste.
 - [ ] Gerar AAB assinado.
 - [ ] Criar app na Google Play Console.
 - [ ] Criar lançamento interno.
