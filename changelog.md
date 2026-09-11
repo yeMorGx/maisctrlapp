@@ -2,6 +2,12 @@
 
 Registro das principais mudanças do MaisCtrl para Android.
 
+## Não publicado
+
+### Corrigido
+
+- Rolagem da tela inicial de autenticação no Android, inclusive ao iniciar o gesto sobre um botão.
+
 ## 0.1.28 — 2026-09-10
 
 ### Adicionado

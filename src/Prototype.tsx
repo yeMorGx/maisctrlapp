@@ -346,7 +346,7 @@ function WelcomeScreen({ flow }: { flow: FlowControls }) {
         <img src={logoAsset} alt="" className="auth-hero-mark" draggable={false} />
       </motion.div>
 
-      <MobileScroll className="auth-scroll">
+      <MobileScroll className="auth-scroll" bottomSpacer={120}>
         <AuthScrollContent className="auth-scroll-content auth-scroll-content-welcome">
           <motion.section
             className="auth-panel auth-panel-welcome"

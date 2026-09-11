@@ -48,6 +48,33 @@ test("signup blocks weak passwords and exposes every requirement", async ({ page
   await expect(page.getByRole("list", { name: "Requisitos da senha" }).locator('li[data-valid="true"]')).toHaveCount(5);
 });
 
+test("welcome page scrolls without activating a button", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(900);
+
+  const scroll = page.getByTestId("mobile-scroll");
+  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(80);
+
+  const button = page.getByRole("button", { name: "Ainda não!" });
+  const box = await button.boundingBox();
+  if (!box) throw new Error("Welcome action has no bounding box");
+
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(startX, startY - (140 * step) / 8);
+    await page.waitForTimeout(12);
+  }
+  await page.mouse.up();
+
+  await expect(page.getByTestId("welcome-screen")).toBeVisible();
+  await expect(page.getByTestId("signup-screen")).toHaveCount(0);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(20);
+});
+
 test("finance entries stay available locally after navigation", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({

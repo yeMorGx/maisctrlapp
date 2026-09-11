@@ -10,6 +10,7 @@ import { useKeyboardInsets } from "./Keyboard";
 
 type MobileScrollProps = PropsWithChildren<{
   className?: string;
+  bottomSpacer?: number;
 }>;
 
 const scrollPhysics = {
@@ -46,7 +47,7 @@ type DragSession = {
   hasDragged: boolean;
 };
 
-export function MobileScroll({ className, children }: MobileScrollProps) {
+export function MobileScroll({ className, bottomSpacer = 0, children }: MobileScrollProps) {
   const { isKeyboardVisible, keyboardHeight, keyboardDragging } = useKeyboardInsets();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<number | null>(null);
@@ -446,6 +447,13 @@ export function MobileScroll({ className, children }: MobileScrollProps) {
         >
           {children}
         </div>
+        {bottomSpacer > 0 ? (
+          <div
+            className="mobile-scroll-bottom-spacer"
+            aria-hidden="true"
+            style={{ height: bottomSpacer }}
+          />
+        ) : null}
       </div>
       <div
         className="mobile-scrollbar"
