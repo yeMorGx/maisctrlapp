@@ -76,3 +76,7 @@ When any text-entry control loses focus, dismiss the simulated keyboard. If the 
 - Do not treat the reference document's "Apple clean" visual direction, Outfit/Figtree typography, or native dark-mode requirement as mobile design requirements. Preserve the current MaisCtrl visual language unless the user explicitly changes it.
 - Premium payments are a future mobile-app workstream. Android is the first platform; evaluate Google Play Billing for digital subscriptions and Google Pay only as a wallet option where it is compatible with the chosen payment flow. For iOS, evaluate StoreKit/In-App Purchase for digital subscriptions and Apple Pay only for payment scenarios where it is appropriate and allowed.
 - Keep payment entitlement synchronization server-side and compatible with the existing Supabase/Stripe model. Never put payment secrets in the client or invent a checkout flow without validating store and provider requirements.
+
+## Documentation Workflow
+
+- Update `changelog.md` whenever an app update is made. Record the release or date and summarize the user-visible additions, changes, fixes, and relevant documentation updates.
