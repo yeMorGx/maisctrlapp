@@ -394,7 +394,10 @@ function AuthScrollContent({
   const { device } = useMobileDevice();
 
   return (
-    <main className={className} style={{ minHeight: device.geometry.screen.height }}>
+    <main
+      className={className}
+      style={{ minHeight: Capacitor.isNativePlatform() ? "100dvh" : device.geometry.screen.height }}
+    >
       {children}
     </main>
   );
