@@ -335,6 +335,7 @@ function WelcomeScreen({ flow }: { flow: FlowControls }) {
       <div className="auth-topbar">
         <BrandLockup />
       </div>
+
       <motion.div
         className="auth-brand-hero"
         aria-hidden="true"
@@ -346,30 +347,26 @@ function WelcomeScreen({ flow }: { flow: FlowControls }) {
         <img src={logoAsset} alt="" className="auth-hero-mark" draggable={false} />
       </motion.div>
 
-      <MobileScroll className="auth-scroll" bottomSpacer={120}>
-        <AuthScrollContent className="auth-scroll-content auth-scroll-content-welcome">
-          <motion.section
-            className="auth-panel auth-panel-welcome"
-            initial={{ y: 44, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.55, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="panel-heading">
-              <span className="panel-kicker">Seu dinheiro, com mais clareza</span>
-              <h1>Já nos conhecemos?</h1>
-              <p>Entre para continuar de onde parou.</p>
-            </div>
-            <div className="button-stack">
-              <button className="pill-button" type="button" onClick={(event) => pushScreen(event, flow, loginScreen())}>
-                Sim! Quero entrar.
-              </button>
-              <button className="pill-button pill-button-muted" type="button" onClick={(event) => pushScreen(event, flow, signupScreen())}>
-                Ainda não!
-              </button>
-            </div>
-          </motion.section>
-        </AuthScrollContent>
-      </MobileScroll>
+      <motion.section
+        className="auth-panel auth-panel-welcome auth-panel-welcome-fixed"
+        initial={{ y: 44, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.55, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="panel-heading">
+          <span className="panel-kicker">Seu dinheiro, com mais clareza</span>
+          <h1>Já nos conhecemos?</h1>
+          <p>Entre para continuar de onde parou.</p>
+        </div>
+        <div className="button-stack">
+          <button className="pill-button" type="button" onClick={(event) => pushScreen(event, flow, loginScreen())}>
+            Sim! Quero entrar.
+          </button>
+          <button className="pill-button pill-button-muted" type="button" onClick={(event) => pushScreen(event, flow, signupScreen())}>
+            Ainda não!
+          </button>
+        </div>
+      </motion.section>
     </div>
   );
 }

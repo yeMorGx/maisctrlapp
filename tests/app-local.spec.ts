@@ -48,31 +48,26 @@ test("signup blocks weak passwords and exposes every requirement", async ({ page
   await expect(page.getByRole("list", { name: "Requisitos da senha" }).locator('li[data-valid="true"]')).toHaveCount(5);
 });
 
-test("welcome page scrolls without activating a button", async ({ page }) => {
+test("welcome page stays fixed without a scroll container", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
   await page.waitForTimeout(900);
 
-  const scroll = page.getByTestId("mobile-scroll");
-  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(80);
+  await expect(page.getByTestId("mobile-scroll")).toHaveCount(0);
 
-  const button = page.getByRole("button", { name: "Ainda não!" });
-  const box = await button.boundingBox();
-  if (!box) throw new Error("Welcome action has no bounding box");
+  const panel = page.locator(".auth-panel-welcome");
+  const before = await panel.boundingBox();
+  if (!before) throw new Error("Welcome action card has no bounding box");
 
-  const startX = box.x + box.width / 2;
-  const startY = box.y + box.height / 2;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  for (let step = 1; step <= 8; step += 1) {
-    await page.mouse.move(startX, startY - (140 * step) / 8);
-    await page.waitForTimeout(12);
-  }
-  await page.mouse.up();
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(100);
 
   await expect(page.getByTestId("welcome-screen")).toBeVisible();
   await expect(page.getByTestId("signup-screen")).toHaveCount(0);
-  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(20);
+
+  const after = await panel.boundingBox();
+  if (!after) throw new Error("Welcome action card disappeared after wheel input");
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
 });
 
 test("finance entries stay available locally after navigation", async ({ page }) => {

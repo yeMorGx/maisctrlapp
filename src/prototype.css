@@ -333,6 +333,14 @@
   padding: 30px 26px 25px;
 }
 
+.auth-panel-welcome-fixed {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
 .auth-panel-form {
   padding: 28px 22px 22px;
 }
