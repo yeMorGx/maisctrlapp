@@ -2608,23 +2608,23 @@ function LocalDataField({
 }
 
 function DashboardMoreSheet({ open, onOpenChange, onSelect }: { open: boolean; onOpenChange: (open: boolean) => void; onSelect: (tab: DashboardTab) => void }) {
-  const items: Array<{ tab: DashboardTab; title: string; description: string; icon: ReactNode; premium?: boolean }> = [
-    { tab: "cards", title: "Cartões e faturas", description: "Limites, faturas e vencimentos", icon: <CardStackIcon aria-hidden="true" /> },
-    { tab: "financings", title: "Parcelas e financiamentos", description: "Acompanhe compromissos longos", icon: <CalendarIcon aria-hidden="true" /> },
-    { tab: "loans", title: "Empréstimos e dívidas", description: "Saldo, parcelas e progresso", icon: <ArrowLeftIcon aria-hidden="true" /> },
-    { tab: "goals", title: "Metas e sonhos", description: "Planeje o que importa", icon: <CheckCircledIcon aria-hidden="true" /> },
-    { tab: "tasks", title: "Tarefas e lembretes", description: "Não deixe uma conta passar", icon: <BellIcon aria-hidden="true" /> },
-    { tab: "reports", title: "Relatórios", description: "Resumo e exportações", icon: <BarChartIcon aria-hidden="true" />, premium: true },
-    { tab: "ai", title: "Ctrl AI", description: "Pergunte sobre seu dinheiro", icon: <DotsHorizontalIcon aria-hidden="true" /> },
-    { tab: "couple", title: "+Couple", description: "Compartilhe tudo a dois", icon: <PersonIcon aria-hidden="true" />, premium: true },
-    { tab: "share", title: "+Share", description: "Divida assinaturas e pagamentos", icon: <CardStackIcon aria-hidden="true" />, premium: true },
-    { tab: "premium", title: "Plano Premium", description: "Mais espaço para organizar", icon: <PlusIcon aria-hidden="true" /> },
+  const items: Array<{ tab: DashboardTab; title: string; description: string; icon: ReactNode; tone: "violet" | "blue" | "orange" | "pink" | "green" | "dark"; premium?: boolean }> = [
+    { tab: "cards", title: "Cartões e faturas", description: "Limites, faturas e vencimentos", icon: <CardStackIcon aria-hidden="true" />, tone: "violet" },
+    { tab: "financings", title: "Parcelas e financiamentos", description: "Acompanhe compromissos longos", icon: <CalendarIcon aria-hidden="true" />, tone: "blue" },
+    { tab: "loans", title: "Empréstimos e dívidas", description: "Saldo, parcelas e progresso", icon: <ArrowLeftIcon aria-hidden="true" />, tone: "orange" },
+    { tab: "goals", title: "Metas e sonhos", description: "Planeje o que importa", icon: <CheckCircledIcon aria-hidden="true" />, tone: "green" },
+    { tab: "tasks", title: "Tarefas e lembretes", description: "Não deixe uma conta passar", icon: <BellIcon aria-hidden="true" />, tone: "pink" },
+    { tab: "reports", title: "Relatórios", description: "Resumo e exportações", icon: <BarChartIcon aria-hidden="true" />, tone: "dark", premium: true },
+    { tab: "ai", title: "Ctrl AI", description: "Pergunte sobre seu dinheiro", icon: <DotsHorizontalIcon aria-hidden="true" />, tone: "violet" },
+    { tab: "couple", title: "+Couple", description: "Compartilhe tudo a dois", icon: <PersonIcon aria-hidden="true" />, tone: "pink", premium: true },
+    { tab: "share", title: "+Share", description: "Divida assinaturas e pagamentos", icon: <CardStackIcon aria-hidden="true" />, tone: "blue", premium: true },
+    { tab: "premium", title: "Plano Premium", description: "Mais espaço para organizar", icon: <PlusIcon aria-hidden="true" />, tone: "dark" },
   ];
 
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange} title="Mais controles" description="Tudo o que você pode adicionar ao seu espaço." snap={0.82} scrollable={false}>
+    <BottomSheet open={open} onOpenChange={onOpenChange} title="Mais controles" description="Tudo o que você pode adicionar ao seu espaço." snap={0.82} scrollable>
       <div className="more-sheet-content">
-        {items.map((item) => <button key={item.tab} className="more-sheet-item" type="button" onClick={() => onSelect(item.tab)}><span className="more-sheet-icon">{item.icon}</span><span className="more-sheet-copy"><strong>{item.title}</strong><small>{item.description}</small></span>{item.premium ? <PremiumBadge /> : null}<ChevronRightIcon aria-hidden="true" /></button>)}
+        {items.map((item) => <button key={item.tab} className={`more-sheet-item${item.premium ? " more-sheet-item-premium" : ""}`} data-tone={item.tone} type="button" onClick={() => onSelect(item.tab)}><span className="more-sheet-icon">{item.icon}</span><span className="more-sheet-copy"><strong>{item.title}</strong><small>{item.description}</small></span>{item.premium ? <PremiumBadge /> : null}<ChevronRightIcon aria-hidden="true" /></button>)}
       </div>
     </BottomSheet>
   );
@@ -3043,8 +3043,9 @@ function DashboardOverview({
         <p>Controle total das suas finanças.</p>
       </motion.header>
 
+      <div className="dashboard-bento-grid">
       <motion.section
-        className="dashboard-total-card"
+        className="dashboard-total-card dashboard-bento-total"
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
@@ -3064,7 +3065,7 @@ function DashboardOverview({
         </div>
       </motion.section>
 
-      <section className="dashboard-section">
+      <section className="dashboard-section dashboard-bento-insights">
         <div className="dashboard-section-title-row">
           <div>
             <span className="dashboard-eyebrow">Resumo rápido</span>
@@ -3083,7 +3084,7 @@ function DashboardOverview({
         </div>
       </section>
 
-      <section className="dashboard-list-card">
+      <section className="dashboard-list-card dashboard-bento-payments">
         <div className="dashboard-section-title-row">
           <div>
             <span className="dashboard-eyebrow">Agenda financeira</span>
@@ -3104,6 +3105,7 @@ function DashboardOverview({
           />
         )) : <DashboardEmptyState onOpenSubscriptions={() => onTabChange("subscriptions")} />}
       </section>
+      </div>
 
     </>
   );

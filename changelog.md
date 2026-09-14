@@ -15,6 +15,9 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Home do dashboard reorganizada em uma composição bento, com saldo âncora, métricas assimétricas e blocos de atenção com identidades visuais diferentes.
+- Hub **Mais** redesenhado como uma grade de tiles bento coloridos, com destaque para áreas Premium e suporte a mais itens sem cortar o conteúdo.
+- Resumos dos módulos ganharam superfícies próprias — lilás, azul, coral, rosa e verde — para diferenciar contexto e prioridade.
 - Ícone do app atualizado com a imagem oficial enviada, com fundo preto, no Android, iOS e versão web instalável.
 - Logo decorativa removida da tela de cadastro para deixar o formulário livre acima do teclado.
 - Badge da logo MaisCtrl no painel pessoal transformado em entrada para o espaço +2.
