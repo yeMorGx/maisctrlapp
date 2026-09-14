@@ -178,13 +178,13 @@ function BrandLockup() {
 
 function DashboardSpaceBadge({ onClick }: { onClick: () => void }) {
   return (
-    <button className="dashboard-space-badge" type="button" aria-label="Abrir espaço +2" onClick={onClick}>
+    <button className="dashboard-space-badge" type="button" aria-label="Abrir espaço +Couple" onClick={onClick}>
       <span className="dashboard-space-badge-mark">
         <img src={logoAsset} alt="" draggable={false} />
       </span>
       <span className="dashboard-space-badge-copy">
-        <strong>+2</strong>
-        <small>Espaço a dois</small>
+        <strong>MaisCtrl</strong>
+        <small>Seu espaço</small>
       </span>
       <ChevronRightIcon aria-hidden="true" />
     </button>
@@ -2647,8 +2647,8 @@ function CoupleSpaceScreen({ flow }: { flow: FlowControls }) {
         <button className="couple-back-button" type="button" aria-label="Voltar para MaisCtrl" onClick={flow.pop}>
           <ArrowLeftIcon aria-hidden="true" />
         </button>
-        <div className="couple-lockup" aria-label="Espaço +2">
-          <span className="couple-lockup-mark">+2</span>
+        <div className="couple-lockup" aria-label="Espaço +Couple">
+          <span className="couple-lockup-mark">+Couple</span>
           <span>Espaço a dois</span>
         </div>
         <button className="couple-brand-button" type="button" aria-label="Voltar para MaisCtrl" onClick={flow.pop}>
@@ -2660,7 +2660,7 @@ function CoupleSpaceScreen({ flow }: { flow: FlowControls }) {
         <section className="couple-hero">
           <div className="couple-hero-orbit couple-hero-orbit-one" aria-hidden="true" />
           <div className="couple-hero-orbit couple-hero-orbit-two" aria-hidden="true" />
-          <span className="couple-overline"><span aria-hidden="true" /> MAISCTRL +2</span>
+          <span className="couple-overline"><span aria-hidden="true" /> MAISCTRL +COUPLE</span>
           <h1>O dinheiro de vocês, no mesmo lugar.</h1>
           <p>Um espaço para dividir planos, organizar a vida e construir juntos.</p>
           <div className="couple-connection" aria-hidden="true">
@@ -2691,7 +2691,7 @@ function CoupleSpaceScreen({ flow }: { flow: FlowControls }) {
 
         <div className="couple-next-step">
           <span className="couple-next-step-dot" aria-hidden="true" />
-          <span>Seu espaço +2 começa aqui</span>
+          <span>Seu espaço +Couple começa aqui</span>
           <ChevronRightIcon aria-hidden="true" />
         </div>
       </main>
