@@ -64,6 +64,7 @@
   height: 50px;
   transform: translateX(-50%);
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.22));
+  pointer-events: none;
 }
 
 .auth-screen-signup .auth-scroll-content-form {

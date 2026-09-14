@@ -48,6 +48,36 @@ test("signup blocks weak passwords and exposes every requirement", async ({ page
   await expect(page.getByRole("list", { name: "Requisitos da senha" }).locator('li[data-valid="true"]')).toHaveCount(5);
 });
 
+test("signup logo stays fixed while the form scrolls underneath", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Ainda não!" }).click();
+  await page.getByLabel("Nome completo").click();
+  await page.waitForTimeout(250);
+
+  const scroll = page.locator(".auth-screen-signup .mobile-scroll");
+  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(200);
+
+  const logo = page.locator(".signup-brand-mark");
+  const before = await logo.boundingBox();
+  if (!before) throw new Error("Signup logo has no bounding box");
+
+  const startX = before.x + before.width / 2;
+  const startY = before.y + before.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(startX, startY - (160 * step) / 8);
+    await page.waitForTimeout(12);
+  }
+  await page.mouse.up();
+
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(20);
+  const after = await logo.boundingBox();
+  if (!after) throw new Error("Signup logo disappeared after scrolling");
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+});
+
 test("welcome page stays fixed without a scroll container", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
