@@ -50,6 +50,7 @@ type DragSession = {
 export function MobileScroll({ className, bottomSpacer = 0, children }: MobileScrollProps) {
   const { isKeyboardVisible, keyboardHeight, keyboardDragging, focusedElement } = useKeyboardInsets();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const keyboardWasVisibleRef = useRef(false);
   const hideTimerRef = useRef<number | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
   const lastInertiaTimeRef = useRef<number | null>(null);
@@ -237,6 +238,22 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
     updateThumb(false);
   }, [keyboardHeight, updateThumb]);
 
+  useEffect(() => {
+    const wasKeyboardVisible = keyboardWasVisibleRef.current;
+
+    if (wasKeyboardVisible && !isKeyboardVisible) {
+      const scroll = scrollRef.current;
+      if (scroll?.closest(".auth-screen")) {
+        stopInertia();
+        setRubberBand(0);
+        scroll.scrollTop = 0;
+        updateThumb(false);
+      }
+    }
+
+    keyboardWasVisibleRef.current = isKeyboardVisible;
+  }, [isKeyboardVisible, setRubberBand, stopInertia, updateThumb]);
+
   const keepFocusedElementVisible = useCallback(() => {
     const scroll = scrollRef.current;
     const focused = focusedElement;
@@ -245,9 +262,7 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
     const scrollRect = scroll.getBoundingClientRect();
     const focusedRect = focused.getBoundingClientRect();
     const visualMargin = 18;
-    const fixedBrand = scroll.closest(".auth-screen-signup")?.querySelector(".signup-brand-mark");
-    const fixedBrandBottom = fixedBrand?.getBoundingClientRect().bottom ?? Number.NEGATIVE_INFINITY;
-    const visibleTop = Math.max(scrollRect.top + visualMargin, fixedBrandBottom + visualMargin);
+    const visibleTop = scrollRect.top + visualMargin;
     const visibleBottom = scrollRect.bottom - visualMargin;
     const visualOverflow =
       focusedRect.bottom > visibleBottom
@@ -408,6 +423,7 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const scroll = scrollRef.current;
     if (!scroll || scroll.scrollHeight <= scroll.clientHeight) return;
+    if (!isKeyboardVisible && scroll.closest(".auth-screen")) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
 
     stopInertia();
@@ -430,7 +446,7 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
       startScrollTop: scroll.scrollTop,
       hasDragged: false,
     };
-  }, [pushDragSample, setRubberBand, stopInertia]);
+  }, [isKeyboardVisible, pushDragSample, setRubberBand, stopInertia]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const scroll = scrollRef.current;

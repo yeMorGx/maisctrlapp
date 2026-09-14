@@ -633,7 +633,6 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
   return (
     <div className="auth-screen auth-screen-signup" data-testid="signup-screen">
       <AuthTopbar flow={flow} onBack={signupStep > 0 ? goToPreviousSignupStep : undefined} showBrand={false} />
-      <img src={logoAsset} alt="MaisCtrl" className="signup-brand-mark" draggable={false} />
 
       <MobileScroll className="auth-scroll">
         <AuthScrollContent className="auth-scroll-content auth-scroll-content-form">

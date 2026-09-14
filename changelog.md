@@ -7,13 +7,13 @@ Registro das principais mudanças do MaisCtrl para Android.
 ### Alterado
 
 - Ícone do app atualizado com a imagem oficial enviada, com fundo preto, no Android, iOS e versão web instalável.
+- Logo decorativa removida da tela de cadastro para deixar o formulário livre acima do teclado.
 
 ### Corrigido
 
 - Tela inicial de autenticação mantida fixa, sem rolagem ou deslocamento do card de ações.
-- Logo da tela de cadastro mantida fixa sem bloquear a rolagem do formulário quando o teclado está aberto.
 - Campos de login reposicionados automaticamente para permanecerem visíveis acima do teclado.
-- Formulário de cadastro reposicionado sem atravessar a área da logo fixa ao abrir o teclado.
+- Telas de autenticação retornam ao topo e ficam sem rolagem depois que o teclado é fechado.
 
 ## 0.1.28 — 2026-09-10
 

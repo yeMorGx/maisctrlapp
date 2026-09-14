@@ -48,7 +48,7 @@ test("signup blocks weak passwords and exposes every requirement", async ({ page
   await expect(page.getByRole("list", { name: "Requisitos da senha" }).locator('li[data-valid="true"]')).toHaveCount(5);
 });
 
-test("signup logo stays fixed while the form scrolls underneath", async ({ page }) => {
+test("signup keeps the focused field above the keyboard without a decorative logo", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Ainda não!" }).click();
@@ -57,30 +57,15 @@ test("signup logo stays fixed while the form scrolls underneath", async ({ page 
 
   const scroll = page.locator(".auth-screen-signup .mobile-scroll");
   const name = page.locator("#signup-name");
-  const logo = page.locator(".signup-brand-mark");
+  await expect(page.locator(".signup-brand-mark")).toHaveCount(0);
   await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(200);
   await expect.poll(async () => {
-    const [nameBox, logoBox] = await Promise.all([name.boundingBox(), logo.boundingBox()]);
-    return nameBox && logoBox ? nameBox.y - (logoBox.y + logoBox.height) : -Infinity;
+    return name.evaluate((element) => {
+      const field = element.getBoundingClientRect();
+      const viewport = element.closest(".mobile-scroll")?.getBoundingClientRect();
+      return viewport ? viewport.bottom - field.bottom : -Infinity;
+    });
   }).toBeGreaterThanOrEqual(0);
-
-  const before = await logo.boundingBox();
-  if (!before) throw new Error("Signup logo has no bounding box");
-
-  const startX = before.x + before.width / 2;
-  const startY = before.y + before.height / 2;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  for (let step = 1; step <= 8; step += 1) {
-    await page.mouse.move(startX, startY - (160 * step) / 8);
-    await page.waitForTimeout(12);
-  }
-  await page.mouse.up();
-
-  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(20);
-  const after = await logo.boundingBox();
-  if (!after) throw new Error("Signup logo disappeared after scrolling");
-  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
 });
 
 test("login keeps the focused fields above the simulated keyboard", async ({ page }) => {
@@ -111,6 +96,32 @@ test("login keeps the focused fields above the simulated keyboard", async ({ pag
       return viewport ? viewport.bottom - field.bottom : -Infinity;
     });
   }).toBeGreaterThanOrEqual(0);
+});
+
+test("auth screens return to the top when the keyboard closes", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Ainda não!" }).click();
+  await page.getByLabel("Nome completo").click();
+
+  const scroll = page.locator("[data-testid='signup-screen'] .mobile-scroll");
+  const keyboard = page.getByTestId("keyboard-dock");
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const keyboardBox = await keyboard.boundingBox();
+  if (!keyboardBox) throw new Error("Keyboard has no bounding box");
+  const startX = keyboardBox.x + keyboardBox.width / 2;
+  const startY = keyboardBox.y + keyboardBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  for (let step = 1; step <= 6; step += 1) {
+    await page.mouse.move(startX, startY + (120 * step) / 6);
+    await page.waitForTimeout(12);
+  }
+  await page.mouse.up();
+
+  await expect(keyboard).toHaveAttribute("data-visible", "false");
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test("welcome page stays fixed without a scroll container", async ({ page }) => {

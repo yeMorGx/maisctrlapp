@@ -55,18 +55,6 @@
   padding: 30px 22px 24px;
 }
 
-.signup-brand-mark {
-  position: absolute;
-  z-index: 4;
-  top: 184px;
-  left: 50%;
-  width: 50px;
-  height: 50px;
-  transform: translateX(-50%);
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.22));
-  pointer-events: none;
-}
-
 .auth-screen-signup .auth-scroll-content-form {
   justify-content: center;
   padding-top: 128px;
@@ -300,6 +288,10 @@
 
 .auth-scroll {
   z-index: 2;
+}
+
+.auth-scroll:not([data-keyboard-visible="true"]) .mobile-scroll {
+  overflow-y: hidden;
 }
 
 .auth-scroll .mobile-scrollbar {
