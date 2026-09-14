@@ -71,14 +71,16 @@ function isStrongPassword(password: string) {
 function useInitialAuthState() {
   const [ready, setReady] = useState(!supabaseConfigured);
   const [hasSession, setHasSession] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     const authClient = supabase;
     if (!authClient) return;
 
     let active = true;
-    const authSubscription = authClient.auth.onAuthStateChange((_event, session) => {
+    const authSubscription = authClient.auth.onAuthStateChange((event, session) => {
       if (!active) return;
+      if (event === "PASSWORD_RECOVERY") setIsPasswordRecovery(true);
       setHasSession(Boolean(session));
       setReady(true);
     });
@@ -97,6 +99,9 @@ function useInitialAuthState() {
         console.warn("A confirmação do e-mail não foi concluída.", errorDescription);
         return;
       }
+
+      const isRecovery = params.get("type") === "recovery";
+      if (isRecovery) setIsPasswordRecovery(true);
 
       try {
         const code = params.get("code");
@@ -117,6 +122,7 @@ function useInitialAuthState() {
 
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (error) {
+        if (isRecovery) setIsPasswordRecovery(false);
         console.warn("Não foi possível concluir a confirmação do e-mail no app.", error);
       }
     };
@@ -158,7 +164,7 @@ function useInitialAuthState() {
     };
   }, []);
 
-  return { ready, hasSession };
+  return { ready, hasSession, isPasswordRecovery };
 }
 
 function BrandLockup() {
@@ -841,6 +847,98 @@ function ResetScreen({ flow, initialEmail }: { flow: FlowControls; initialEmail:
                 />
                 <button className="pill-button" type="submit" disabled={!email || isSubmitting}>
                   {isSubmitting ? "Enviando..." : "Enviar link"}
+                </button>
+              </form>
+            )}
+          </motion.section>
+        </AuthScrollContent>
+      </MobileScroll>
+    </div>
+  );
+}
+
+function PasswordRecoveryScreen({ flow }: { flow: FlowControls }) {
+  const keyboard = useKeyboard();
+  useNativeSystemBars(SystemBarsStyle.Dark);
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    keyboard.hide();
+    setAuthError("");
+
+    if (!isStrongPassword(password)) {
+      setAuthError("Escolha uma senha que atenda a todos os requisitos.");
+      return;
+    }
+
+    if (password !== confirmation) {
+      setAuthError("As senhas não conferem.");
+      return;
+    }
+
+    if (!supabase) {
+      setAuthError("A conexão com o Supabase ainda não foi configurada.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      const message = error.message.toLowerCase();
+      setAuthError(
+        message.includes("session") || message.includes("expired") || message.includes("invalid")
+          ? "Este link expirou ou já foi usado. Solicite um novo link de recuperação."
+          : authErrorMessage(error),
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    setSubmitted(true);
+    setIsSubmitting(false);
+  };
+
+  return (
+    <div className="auth-screen" data-testid="password-recovery-screen">
+      <AuthBackground />
+      <AuthTopbar flow={flow} onBack={() => flow.replace(loginScreen())} />
+
+      <MobileScroll className="auth-scroll">
+        <AuthScrollContent className="auth-scroll-content auth-scroll-content-form">
+          <motion.section
+            className="auth-panel auth-panel-form"
+            initial={{ y: 44, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="panel-heading">
+              <span className="panel-kicker">Recupere o acesso</span>
+              <h1>Crie uma senha nova.</h1>
+              <p>Escolha uma senha segura para voltar a usar sua conta.</p>
+            </div>
+
+            {authError && <p className="auth-error" role="alert">{authError}</p>}
+
+            {submitted ? (
+              <AuthSuccess
+                message="Sua senha foi atualizada com sucesso."
+                onReset={() => setSubmitted(false)}
+                onContinue={() => flow.replace(dashboardScreen())}
+                continueLabel="Continuar para o app"
+              />
+            ) : (
+              <form className="auth-form" onSubmit={submit}>
+                <PasswordField id="recovery-password" label="Nova senha" value={password} onChange={setPassword} />
+                <PasswordRules password={password} />
+                <PasswordField id="recovery-password-confirmation" label="Confirme a nova senha" value={confirmation} onChange={setConfirmation} />
+                <button className="pill-button" type="submit" disabled={!isStrongPassword(password) || password !== confirmation || isSubmitting}>
+                  {isSubmitting ? "Salvando..." : "Salvar nova senha"}
                 </button>
               </form>
             )}
@@ -3345,6 +3443,10 @@ function resetScreen(initialEmail: string): FlowScreen {
   return { id: "reset", render: (flow) => <ResetScreen flow={flow} initialEmail={initialEmail} /> };
 }
 
+function passwordRecoveryScreen(): FlowScreen {
+  return { id: "password-recovery", render: (flow) => <PasswordRecoveryScreen flow={flow} /> };
+}
+
 function dashboardScreen(): FlowScreen {
   return { id: "dashboard", render: (flow) => <DashboardScreen flow={flow} /> };
 }
@@ -3354,7 +3456,7 @@ function coupleSpaceScreen(): FlowScreen {
 }
 
 export default function Prototype() {
-  const { ready, hasSession } = useInitialAuthState();
+  const { ready, hasSession, isPasswordRecovery } = useInitialAuthState();
 
   if (!ready) {
     return (
@@ -3370,6 +3472,10 @@ export default function Prototype() {
         />
       </div>
     );
+  }
+
+  if (isPasswordRecovery && hasSession) {
+    return <FlowStack key="password-recovery" initial={passwordRecoveryScreen()} />;
   }
 
   return <FlowStack key={hasSession ? "authenticated" : "public"} initial={hasSession ? dashboardScreen() : splashScreen()} />;

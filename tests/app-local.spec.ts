@@ -109,6 +109,7 @@ test("signup remains static when the keyboard closes", async ({ page }) => {
   const keyboard = page.getByTestId("keyboard-dock");
   await expect(page.locator("[data-testid='signup-screen'] .mobile-scroll")).toHaveCount(0);
   await expect(viewport).toHaveAttribute("data-keyboard-visible", "true");
+  await page.waitForTimeout(350);
 
   const keyboardBox = await keyboard.boundingBox();
   if (!keyboardBox) throw new Error("Keyboard has no bounding box");
@@ -125,6 +126,61 @@ test("signup remains static when the keyboard closes", async ({ page }) => {
   await expect(keyboard).toHaveAttribute("data-visible", "false");
   await expect(viewport).toHaveAttribute("data-keyboard-visible", "false");
   await expect(page.locator("[data-testid='signup-screen'] .mobile-scroll")).toHaveCount(0);
+});
+
+test("password recovery deep link opens the new password form", async ({ page }) => {
+  await page.addInitScript(({ launchUrl }) => {
+    const globalWindow = window as typeof window & {
+      CapacitorCustomPlatform?: { name: string };
+      Capacitor?: Record<string, unknown>;
+    };
+
+    globalWindow.CapacitorCustomPlatform = { name: "android" };
+    globalWindow.Capacitor = {
+      PluginHeaders: [
+        {
+          name: "App",
+          methods: [
+            { name: "addListener", rtype: "callback" },
+            { name: "removeListener", rtype: "promise" },
+            { name: "getLaunchUrl", rtype: "promise" },
+          ],
+        },
+        { name: "SystemBars", methods: [{ name: "setStyle", rtype: "promise" }] },
+      ],
+      nativeCallback: () => Promise.resolve("local-app-callback"),
+      nativePromise: (_plugin: string, method: string) => method === "getLaunchUrl"
+        ? Promise.resolve({ url: launchUrl })
+        : Promise.resolve(),
+    };
+  }, {
+    launchUrl: `maisctrl://auth/callback#access_token=${fakeAccessToken}&refresh_token=local-recovery-refresh&type=recovery`,
+  });
+  await page.route("**/auth/v1/user", async (route) => {
+    const user = {
+      id: fakeUserId,
+      aud: "authenticated",
+      role: "authenticated",
+      email: "local-test@maisctrl.app",
+      app_metadata: { provider: "email", providers: ["email"] },
+      user_metadata: { full_name: "Teste local" },
+      identities: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ user }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("password-recovery-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByLabel("Nova senha", { exact: true }).fill("Abcdef1!");
+  await page.getByLabel("Confirme a nova senha", { exact: true }).fill("Abcdef1!");
+  await page.getByRole("button", { name: "Salvar nova senha" }).click();
+  await expect(page.getByRole("status")).toContainText("Sua senha foi atualizada com sucesso.");
 });
 
 test("welcome page stays fixed without a scroll container", async ({ page }) => {

@@ -19,6 +19,9 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Teclado simulado expandido até as laterais da tela, sem falhas nos cantos superiores.
 - Upload de foto de perfil habilitado no Supabase com bucket e políticas de acesso por usuário.
 - Formulários em bottom sheet mantidos fixos, com espaço de segurança acima do teclado.
+- Link de recuperação de senha passou a abrir o formulário de nova senha dentro do app.
+- Callback de recuperação separado do login normal para impedir entrada direta no painel sem trocar a senha.
+- Deep link `maisctrl://auth/callback` registrado também no iOS para completar a recuperação de senha.
 
 ## 0.1.28 — 2026-09-10
 
