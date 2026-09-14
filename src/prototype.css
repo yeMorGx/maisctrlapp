@@ -2493,7 +2493,7 @@ button.dashboard-list-item:focus-visible {
   bottom: calc(var(--mobile-safe-area-height) + 9px);
   left: 12px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 64px;
   padding: 7px;
   border: 1px solid rgba(228, 228, 231, 0.92);

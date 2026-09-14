@@ -216,6 +216,7 @@ test("dashboard navigation uses a floating dock with a clear active tab", async 
   await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
 
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(navigation.getByRole("button", { name: "Perfil", exact: true })).toHaveCount(0);
   await expect(navigation).toHaveCSS("border-radius", "22px");
   await expect(navigation).toHaveCSS("right", "12px");
   const navigationBox = await navigation.boundingBox();
@@ -407,7 +408,7 @@ test("profile photo upload uses the avatars bucket and saves the profile", async
 
   await page.goto("/");
   await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: "Perfil", exact: true }).click();
+  await page.getByRole("button", { name: "Abrir perfil", exact: true }).click();
   await page.getByRole("button", { name: "Editar perfil" }).click();
   await page.getByLabel("Nome completo").fill("Teste local");
   await page.locator('input[type="file"]').setInputFiles({

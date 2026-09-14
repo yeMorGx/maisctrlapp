@@ -2455,7 +2455,6 @@ const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNod
   { id: "finances", label: "Finanças", icon: <DotsHorizontalIcon aria-hidden="true" /> },
   { id: "subscriptions", label: "Assinaturas", icon: <CardStackIcon aria-hidden="true" /> },
   { id: "calendar", label: "Calendário", icon: <CalendarIcon aria-hidden="true" /> },
-  { id: "profile", label: "Perfil", icon: <PersonIcon aria-hidden="true" /> },
 ];
 
 function DashboardScreen({ flow }: { flow: FlowControls }) {
