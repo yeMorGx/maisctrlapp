@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { App } from "@capacitor/app";
@@ -29,6 +29,7 @@ import {
   type FlowScreen,
   useMobileDevice,
   useKeyboard,
+  useKeyboardInsets,
 } from "./mobile";
 import { supabase, supabaseConfigured } from "./lib/supabase";
 import { getAuthRedirectUrl } from "./lib/authRedirect";
@@ -383,9 +384,11 @@ function AuthTopbar({ flow, onBack, showBrand = true }: { flow: FlowControls; on
 
 function AuthScrollContent({
   className,
+  fitViewport = false,
   children,
 }: {
   className: string;
+  fitViewport?: boolean;
   children: ReactNode;
 }) {
   const { device } = useMobileDevice();
@@ -393,7 +396,7 @@ function AuthScrollContent({
   return (
     <main
       className={className}
-      style={{ minHeight: Capacitor.isNativePlatform() ? "100dvh" : device.geometry.screen.height }}
+      style={{ minHeight: fitViewport ? "100%" : Capacitor.isNativePlatform() ? "100dvh" : device.geometry.screen.height }}
     >
       {children}
     </main>
@@ -519,6 +522,7 @@ function LoginScreen({ flow }: { flow: FlowControls }) {
 
 function SignupScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
+  const { keyboardHeight, isKeyboardVisible } = useKeyboardInsets();
   useNativeSystemBars(SystemBarsStyle.Dark);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [signupStep, setSignupStep] = useState<0 | 1 | 2 | 3>(0);
@@ -634,8 +638,12 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
     <div className="auth-screen auth-screen-signup" data-testid="signup-screen">
       <AuthTopbar flow={flow} onBack={signupStep > 0 ? goToPreviousSignupStep : undefined} showBrand={false} />
 
-      <MobileScroll className="auth-scroll">
-        <AuthScrollContent className="auth-scroll-content auth-scroll-content-form">
+      <section
+        className="auth-signup-viewport"
+        data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
+        style={{ "--keyboard-height": `${keyboardHeight}px` } as CSSProperties}
+      >
+        <AuthScrollContent className="auth-scroll-content auth-scroll-content-form" fitViewport>
           <motion.section
             className="auth-panel auth-panel-form"
             initial={{ y: 44, opacity: 0 }}
@@ -745,7 +753,7 @@ function SignupScreen({ flow }: { flow: FlowControls }) {
             )}
           </motion.section>
         </AuthScrollContent>
-      </MobileScroll>
+      </section>
     </div>
   );
 }

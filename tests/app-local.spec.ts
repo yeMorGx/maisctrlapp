@@ -48,24 +48,25 @@ test("signup blocks weak passwords and exposes every requirement", async ({ page
   await expect(page.getByRole("list", { name: "Requisitos da senha" }).locator('li[data-valid="true"]')).toHaveCount(5);
 });
 
-test("signup keeps the focused field above the keyboard without a decorative logo", async ({ page }) => {
+test("signup keeps the focused field above the keyboard without scrolling or a decorative logo", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Ainda não!" }).click();
   await page.getByLabel("Nome completo").click();
   await page.waitForTimeout(250);
 
-  const scroll = page.locator(".auth-screen-signup .mobile-scroll");
+  const viewport = page.locator(".auth-signup-viewport");
   const name = page.locator("#signup-name");
   await expect(page.locator(".signup-brand-mark")).toHaveCount(0);
-  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(200);
+  await expect(page.locator("[data-testid='signup-screen'] .mobile-scroll")).toHaveCount(0);
   await expect.poll(async () => {
     return name.evaluate((element) => {
       const field = element.getBoundingClientRect();
-      const viewport = element.closest(".mobile-scroll")?.getBoundingClientRect();
-      return viewport ? viewport.bottom - field.bottom : -Infinity;
+      const keyboardViewport = element.closest(".auth-signup-viewport")?.getBoundingClientRect();
+      return keyboardViewport ? keyboardViewport.bottom - field.bottom : -Infinity;
     });
   }).toBeGreaterThanOrEqual(0);
+  await expect(viewport).toHaveAttribute("data-keyboard-visible", "true");
 });
 
 test("login keeps the focused fields above the simulated keyboard", async ({ page }) => {
@@ -98,15 +99,16 @@ test("login keeps the focused fields above the simulated keyboard", async ({ pag
   }).toBeGreaterThanOrEqual(0);
 });
 
-test("auth screens return to the top when the keyboard closes", async ({ page }) => {
+test("signup remains static when the keyboard closes", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Ainda não!" }).click();
   await page.getByLabel("Nome completo").click();
 
-  const scroll = page.locator("[data-testid='signup-screen'] .mobile-scroll");
+  const viewport = page.locator(".auth-signup-viewport");
   const keyboard = page.getByTestId("keyboard-dock");
-  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect(page.locator("[data-testid='signup-screen'] .mobile-scroll")).toHaveCount(0);
+  await expect(viewport).toHaveAttribute("data-keyboard-visible", "true");
 
   const keyboardBox = await keyboard.boundingBox();
   if (!keyboardBox) throw new Error("Keyboard has no bounding box");
@@ -121,7 +123,8 @@ test("auth screens return to the top when the keyboard closes", async ({ page })
   await page.mouse.up();
 
   await expect(keyboard).toHaveAttribute("data-visible", "false");
-  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect(viewport).toHaveAttribute("data-keyboard-visible", "false");
+  await expect(page.locator("[data-testid='signup-screen'] .mobile-scroll")).toHaveCount(0);
 });
 
 test("welcome page stays fixed without a scroll container", async ({ page }) => {

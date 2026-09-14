@@ -55,6 +55,14 @@
   padding: 30px 22px 24px;
 }
 
+.auth-signup-viewport {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 var(--keyboard-height);
+  overflow: hidden;
+  transition: bottom 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .auth-screen-signup .auth-scroll-content-form {
   justify-content: center;
   padding-top: 128px;
