@@ -230,6 +230,46 @@ test("dashboard navigation uses a floating dock with a clear active tab", async 
   await expect(navigation.getByRole("button", { name: "Início", exact: true })).toHaveAttribute("data-active", "false");
 });
 
+test("known subscription names load their logo from the CDN", async ({ page }) => {
+  await seedLocalSession(page);
+  const logoUrl = "https://cdn.simpleicons.org/netflix";
+  await page.route("https://cdn.simpleicons.org/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "image/svg+xml" },
+    body: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M4 4h16v16H4z\"/></svg>",
+  }));
+  await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().url().includes("/subscriptions?")) {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify([{
+          id: "subscription-netflix",
+          name: "Netflix",
+          value: 29.9,
+          frequency: "monthly",
+          payment_method: "credit",
+          renewal_date: "2026-09-20T00:00:00.000Z",
+          trial_end_date: null,
+        }]),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: "[]",
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  const subscriptionAvatar = page.getByTestId("subscription-avatar").first();
+  await expect(subscriptionAvatar).toHaveAttribute("data-has-logo", "true");
+  await expect(subscriptionAvatar).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(subscriptionAvatar.locator("img")).toHaveAttribute("src", logoUrl);
+});
+
 test("MaisCtrl badge changes to the fixed +Couple space and returns to the dashboard", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({

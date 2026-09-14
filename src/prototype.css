@@ -1838,6 +1838,19 @@ button.dashboard-list-item:focus-visible {
 .dashboard-list-avatar[data-tone="green"] { background: rgba(85, 192, 123, 0.22); color: #c4f8d4; }
 .dashboard-list-avatar[data-tone="orange"] { background: rgba(232, 153, 76, 0.24); color: #ffe0b7; }
 
+.dashboard-list-avatar[data-has-logo="true"] {
+  border: 1px solid #e4e4e7;
+  background: #ffffff;
+  color: #27272a;
+}
+
+.dashboard-list-avatar img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
 .dashboard-list-copy {
   display: grid;
   min-width: 0;

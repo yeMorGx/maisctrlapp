@@ -14,6 +14,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Badge principal renomeado para MaisCtrl e espaço do casal identificado como +Couple após o clique.
 - Avatar do perfil exibido no botão do cabeçalho, ao lado das notificações.
 - Menu inferior redesenhado como dock flutuante, com aba ativa destacada e respiro para a área segura do aparelho.
+- Logos de marcas conhecidas adicionadas às assinaturas via CDN público, com fallback para a inicial.
 
 ### Corrigido
 

@@ -2843,7 +2843,7 @@ function DashboardListItem({ name, detail, value, tone, onClick }: {
 }) {
   const content = (
     <>
-      <span className="dashboard-list-avatar" data-tone={tone}>{name.slice(0, 1)}</span>
+      <SubscriptionAvatar name={name} tone={tone} />
       <span className="dashboard-list-copy">
         <strong>{name}</strong>
         <small>{detail}</small>
@@ -2859,6 +2859,70 @@ function DashboardListItem({ name, detail, value, tone, onClick }: {
     </button>
   ) : (
     <div className="dashboard-list-item">{content}</div>
+  );
+}
+
+const subscriptionLogoAliases: Array<[string, string]> = [
+  ["amazon prime video", "amazonprime"],
+  ["prime video", "primevideo"],
+  ["youtube premium", "youtube"],
+  ["disney plus", "disneyplus"],
+  ["disney+", "disneyplus"],
+  ["apple tv", "appletv"],
+  ["google one", "googleone"],
+  ["microsoft 365", "microsoft365"],
+  ["chatgpt", "openai"],
+  ["netflix", "netflix"],
+  ["spotify", "spotify"],
+  ["youtube", "youtube"],
+  ["amazon", "amazon"],
+  ["apple", "apple"],
+  ["adobe", "adobe"],
+  ["canva", "canva"],
+  ["notion", "notion"],
+  ["dropbox", "dropbox"],
+  ["icloud", "icloud"],
+  ["deezer", "deezer"],
+  ["globoplay", "globoplay"],
+  ["hbo max", "max"],
+  ["max", "max"],
+  ["crunchyroll", "crunchyroll"],
+  ["paramount", "paramountplus"],
+  ["twitch", "twitch"],
+];
+
+function normalizeSubscriptionName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function subscriptionLogoSlug(name: string) {
+  const normalizedName = normalizeSubscriptionName(name);
+  return subscriptionLogoAliases.find(([alias]) => normalizedName === alias || normalizedName.includes(alias))?.[1] ?? null;
+}
+
+function SubscriptionAvatar({ name, tone }: { name: string; tone: "red" | "green" | "orange" }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const slug = subscriptionLogoSlug(name);
+  const showLogo = Boolean(slug) && !logoFailed;
+
+  return (
+    <span className="dashboard-list-avatar" data-tone={tone} data-has-logo={showLogo ? "true" : "false"} data-testid="subscription-avatar">
+      {showLogo ? (
+        <img
+          src={`https://cdn.simpleicons.org/${slug}`}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={() => setLogoFailed(true)}
+        />
+      ) : name.slice(0, 1)}
+    </span>
   );
 }
 
