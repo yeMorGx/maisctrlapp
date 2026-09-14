@@ -4,6 +4,10 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ## Não publicado
 
+### Alterado
+
+- Ícone do app atualizado com a imagem oficial enviada, com fundo preto, no Android, iOS e versão web instalável.
+
 ### Corrigido
 
 - Rolagem da tela inicial de autenticação no Android, inclusive ao iniciar o gesto sobre um botão.
