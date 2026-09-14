@@ -217,7 +217,7 @@ test("dashboard navigation uses a floating dock with a clear active tab", async 
 
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
   await expect(navigation.getByRole("button", { name: "Perfil", exact: true })).toHaveCount(0);
-  await expect(navigation).toHaveCSS("border-radius", "22px");
+  await expect(navigation).toHaveCSS("border-radius", "28px");
   await expect(navigation).toHaveCSS("right", "12px");
   const navigationBox = await navigation.boundingBox();
   const dashboardBox = await page.getByTestId("dashboard-screen").boundingBox();
@@ -296,6 +296,42 @@ test("known subscription names load their logo from the CDN", async ({ page }) =
   await expect(subscriptionAvatar).toHaveAttribute("data-has-logo", "true");
   await expect(subscriptionAvatar).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await expect(subscriptionAvatar.locator("img")).toHaveAttribute("src", logoUrl);
+});
+
+test("bank and academy names resolve to logo CDNs", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("https://cdn.simpleicons.org/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "image/svg+xml" },
+    body: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M4 4h16v16H4z\"/></svg>",
+  }));
+  await page.route("https://icons.duckduckgo.com/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "image/svg+xml" },
+    body: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+  }));
+  await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().url().includes("/subscriptions?")) {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify([
+          { id: "subscription-nubank", name: "Nubank", value: 49.9, frequency: "monthly", payment_method: "credit", renewal_date: "2026-09-20T00:00:00.000Z", trial_end_date: null },
+          { id: "subscription-smart-fit", name: "Smart Fit", value: 99.9, frequency: "monthly", payment_method: "debit", renewal_date: "2026-09-22T00:00:00.000Z", trial_end_date: null },
+        ]),
+      });
+      return;
+    }
+
+    await route.fulfill({ status: 200, headers: { "content-type": "application/json" }, body: "[]" });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  const avatars = page.getByTestId("subscription-avatar");
+  await expect(avatars.nth(0)).toHaveAttribute("data-logo-source", "simple-icons");
+  await expect(avatars.nth(0).locator("img")).toHaveAttribute("src", "https://cdn.simpleicons.org/nubank");
+  await expect(avatars.nth(1)).toHaveAttribute("data-logo-source", "domain-favicon");
+  await expect(avatars.nth(1).locator("img")).toHaveAttribute("src", "https://icons.duckduckgo.com/ip3/smartfit.com.br.ico");
 });
 
 test("MaisCtrl badge changes to the fixed +Couple space and returns to the dashboard", async ({ page }) => {

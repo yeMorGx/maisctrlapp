@@ -3414,7 +3414,7 @@ function DashboardOverview({
         <p>Controle total das suas finanças.</p>
       </motion.header>
 
-      <div className="dashboard-bento-grid">
+      <div className="dashboard-bento-grid" aria-label="Resumo financeiro">
       <motion.section
         className="dashboard-total-card dashboard-bento-total"
         initial={{ opacity: 0, y: 18 }}
@@ -3562,6 +3562,48 @@ const subscriptionLogoAliases: Array<[string, string]> = [
   ["crunchyroll", "crunchyroll"],
   ["paramount", "paramountplus"],
   ["twitch", "twitch"],
+  ["nubank", "nubank"],
+  ["mercado pago", "mercadopago"],
+  ["picpay", "picpay"],
+  ["paypal", "paypal"],
+  ["wise", "wise"],
+  ["ifood", "ifood"],
+  ["adidas", "adidas"],
+  ["nike", "nike"],
+  ["uber", "uber"],
+  ["vivo", "vivo"],
+  ["fitbit", "fitbit"],
+];
+
+const subscriptionLogoDomains: Array<[string, string]> = [
+  ["itau", "itau.com.br"],
+  ["banco inter", "inter.co"],
+  ["inter", "inter.co"],
+  ["bradesco", "bradesco.com.br"],
+  ["santander", "santander.com.br"],
+  ["caixa", "caixa.gov.br"],
+  ["banco do brasil", "bb.com.br"],
+  ["bb", "bb.com.br"],
+  ["btg pactual", "btgpactual.com"],
+  ["c6 bank", "c6bank.com.br"],
+  ["banco original", "bancooriginal.com.br"],
+  ["neon", "neon.com.br"],
+  ["pagbank", "pagbank.com.br"],
+  ["recargapay", "recargapay.com.br"],
+  ["smart fit", "smartfit.com.br"],
+  ["bluefit", "bluefit.com.br"],
+  ["bodytech", "bodytech.com.br"],
+  ["gympass", "gympass.com"],
+  ["wellhub", "wellhub.com"],
+  ["totalpass", "totalpass.com.br"],
+  ["decathlon", "decathlon.com.br"],
+  ["centauro", "centauro.com.br"],
+  ["track&field", "tf.com.br"],
+  ["claro", "claro.com.br"],
+  ["tim", "tim.com.br"],
+  ["unimed", "unimed.coop.br"],
+  ["rappi", "rappi.com.br"],
+  ["99", "99app.com"],
 ];
 
 function normalizeSubscriptionName(name: string) {
@@ -3578,16 +3620,29 @@ function subscriptionLogoSlug(name: string) {
   return subscriptionLogoAliases.find(([alias]) => normalizedName === alias || normalizedName.includes(alias))?.[1] ?? null;
 }
 
+function subscriptionLogoDomain(name: string) {
+  const normalizedName = normalizeSubscriptionName(name);
+  return subscriptionLogoDomains.find(([alias]) => normalizedName === alias || normalizedName.includes(alias))?.[1] ?? null;
+}
+
+function subscriptionLogoUrl(name: string) {
+  const slug = subscriptionLogoSlug(name);
+  if (slug) return `https://cdn.simpleicons.org/${slug}`;
+
+  const domain = subscriptionLogoDomain(name);
+  return domain ? `https://icons.duckduckgo.com/ip3/${domain}.ico` : null;
+}
+
 function SubscriptionAvatar({ name, tone }: { name: string; tone: "red" | "green" | "orange" }) {
   const [logoFailed, setLogoFailed] = useState(false);
-  const slug = subscriptionLogoSlug(name);
-  const showLogo = Boolean(slug) && !logoFailed;
+  const logoUrl = subscriptionLogoUrl(name);
+  const showLogo = Boolean(logoUrl) && !logoFailed;
 
   return (
-    <span className="dashboard-list-avatar" data-tone={tone} data-has-logo={showLogo ? "true" : "false"} data-testid="subscription-avatar">
+    <span className="dashboard-list-avatar" data-tone={tone} data-has-logo={showLogo ? "true" : "false"} data-logo-source={logoUrl?.includes("simpleicons") ? "simple-icons" : logoUrl ? "domain-favicon" : "initial"} data-testid="subscription-avatar">
       {showLogo ? (
         <img
-          src={`https://cdn.simpleicons.org/${slug}`}
+          src={logoUrl ?? undefined}
           alt=""
           loading="lazy"
           decoding="async"
@@ -4063,21 +4118,23 @@ function DashboardFinance() {
 
   return (
     <>
-      <section className="finance-balance-card" aria-label="Resumo financeiro local">
-        <div className="finance-balance-heading">
-          <div>
-            <span className="dashboard-eyebrow">Resumo local</span>
-            <strong>Saldo estimado</strong>
+      <div className="finance-summary-bento">
+        <section className="finance-balance-card" aria-label="Resumo financeiro local">
+          <div className="finance-balance-heading">
+            <div>
+              <span className="dashboard-eyebrow">Resumo local</span>
+              <strong>Saldo estimado</strong>
+            </div>
+            <span className="finance-local-badge">Neste aparelho</span>
           </div>
-          <span className="finance-local-badge">Neste aparelho</span>
-        </div>
-        <strong className="finance-balance-value">{formatCurrency(balance)}</strong>
-        <span className="dashboard-card-caption">Os lançamentos ficam salvos neste aparelho até o banco ser conectado.</span>
-      </section>
+          <strong className="finance-balance-value">{formatCurrency(balance)}</strong>
+          <span className="dashboard-card-caption">Os lançamentos ficam salvos neste aparelho até o banco ser conectado.</span>
+        </section>
 
-      <div className="finance-metric-grid">
-        <div className="finance-metric-card" data-tone="green"><span>Entradas</span><strong>{formatCurrency(income)}</strong></div>
-        <div className="finance-metric-card" data-tone="red"><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div>
+        <div className="finance-metric-grid">
+          <div className="finance-metric-card" data-tone="green"><span>Entradas</span><strong>{formatCurrency(income)}</strong></div>
+          <div className="finance-metric-card" data-tone="red"><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div>
+        </div>
       </div>
 
       <div className="finance-primary-actions">
@@ -4342,7 +4399,7 @@ function DashboardModule({
   }[tab];
 
   return (
-    <motion.div className="dashboard-module" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+    <motion.div className="dashboard-module" data-tab={tab} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <span className="dashboard-eyebrow">{moduleCopy.eyebrow}</span>
       <h1>{moduleCopy.title}</h1>
       <p className="dashboard-module-description">{moduleCopy.description}</p>

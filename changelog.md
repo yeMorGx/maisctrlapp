@@ -17,6 +17,10 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Direção visual do dashboard aplicada com tokens inspirados no Material 3, superfícies tonais e estados de interação mais consistentes.
+- Resumo financeiro reorganizado em bento grid responsivo, com saldo em destaque e métricas agrupadas por contexto.
+- Telas de módulos, cartões, calendário, relatórios e menu Mais ganharam hierarquia de superfícies e cantos expressivos, sem gradientes.
+- Catálogo de logos via CDN ampliado para bancos, academias, operadoras, delivery e outros serviços, com fallback por domínio e pela inicial.
 - Campos de data dos módulos locais padronizados para `dd/mm/aaaa`, com calendário opcional e leitura consistente em pt-BR.
 - Superfícies do app agora usam cores sólidas, bordas e sombras para uma leitura mais limpa, sem gradientes decorativos.
 - Modal de detalhes de assinatura refinado com identidade visual, resumo bento e ações com hierarquia mais clara.
