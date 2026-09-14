@@ -16,6 +16,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Menu inferior redesenhado como dock flutuante, com aba ativa destacada e respiro para a área segura do aparelho.
 - Perfil removido do menu inferior; o acesso continua disponível pelo avatar no cabeçalho.
 - Logos de marcas conhecidas adicionadas às assinaturas via CDN público, com fallback para a inicial.
+- Ícone adaptativo do Android alinhado à logo oficial enviada, removendo o foreground padrão do template.
 
 ### Corrigido
 
