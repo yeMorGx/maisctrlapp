@@ -7,6 +7,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 ### Adicionado
 
 - Aviso de nova versão dentro do app, com comparação automática da build instalada e download direto da APK Android.
+- Ícone de atualização ao lado do badge MaisCtrl, com modal central para detalhes e download da APK.
 - Hub **Mais** no menu inferior, reunindo cartões, financiamentos, empréstimos, metas, tarefas, relatórios, Ctrl AI, +Couple, +Share e Premium.
 - Módulos locais para cartões e faturas, compromissos de crédito, metas, tarefas e assinaturas compartilhadas, com persistência no aparelho e suporte básico offline.
 - Relatório resumido com exportação CSV e área reservada para exportações Premium em Excel/PDF.
@@ -17,6 +18,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Atualização Android agora concede seis horas de tolerância após a primeira detecção e bloqueia o app até a instalação da versão mais recente depois do prazo.
 - Tela de cartões ganhou representações visuais por instituição, com logo/nome, final do cartão, fechamento e vencimento.
 - Resumo de cada cartão agora exibe fatura, saldo disponível, limite e percentual usado; múltiplos cartões podem ser explorados por deslize horizontal.
 - Direção visual do dashboard aplicada com tokens inspirados no Material 3, superfícies tonais e estados de interação mais consistentes.

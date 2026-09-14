@@ -278,7 +278,7 @@ test("cards show a branded visual summary and swipe horizontally when there is m
   await expect.poll(() => carousel.evaluate((element) => (element as HTMLElement).scrollLeft)).toBeGreaterThan(0);
 });
 
-test("shows a new Android build with a direct APK download", async ({ page }) => {
+test("opens the Android update inside a centered modal", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest", (route) => route.fulfill({
     status: 200,
@@ -298,11 +298,58 @@ test("shows a new Android build with a direct APK download", async ({ page }) =>
 
   await page.goto("/");
   await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
-  const update = page.getByTestId("app-update-banner");
-  await expect(update).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("app-update-banner")).toHaveCount(0);
+  const trigger = page.getByTestId("app-update-trigger");
+  await expect(trigger).toBeVisible({ timeout: 5_000 });
+  await trigger.click();
+
+  const update = page.getByTestId("app-update-modal");
+  await expect(update).toBeVisible();
+  await expect(update).toContainText("Nova versão disponível");
   await expect(update).toContainText("MaisCtrl 9.9.9");
+  await expect(update).toContainText("Você pode continuar por");
+  await expect(update).toContainText("6h");
   await expect(update.getByRole("link", { name: "Baixar MaisCtrl 9.9.9" })).toHaveAttribute("href", "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk");
   await expect(update.getByRole("link")).toHaveAttribute("download", "maisctrl.apk");
+
+  await page.getByRole("button", { name: "Fechar atualização" }).click();
+  await expect(update).toBeHidden();
+});
+
+test("blocks the app when the Android update grace period expires", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("maisctrl-update-grace-v1", JSON.stringify({
+      version: "9.9.9",
+      startedAt: 0,
+      expiresAt: 1,
+    }));
+  });
+  await page.route("https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "MaisCtrl Android 9.9.9 — versão de teste",
+      body: "Versão: 9.9.9\nBuild: 999",
+      published_at: "2026-09-14T12:00:00Z",
+      assets: [{ name: "maisctrl.apk", browser_download_url: "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk" }],
+    }),
+  }));
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  const update = page.getByTestId("app-update-modal");
+  await expect(update).toBeVisible({ timeout: 5_000 });
+  await expect(update).toContainText("Atualização obrigatória");
+  await expect(update).toContainText("Atualize para continuar");
+  await expect(page.getByTestId("app-update-trigger")).toHaveAttribute("data-locked", "true");
+  await expect(page.getByRole("button", { name: "Fechar atualização" })).toHaveCount(0);
+  await expect(update.getByRole("link", { name: "Baixar MaisCtrl 9.9.9" })).toHaveAttribute("href", "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk");
 });
 
 test("known subscription names load their logo from the CDN", async ({ page }) => {

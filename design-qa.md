@@ -1,46 +1,45 @@
-# Design QA — cartões e faturas
+# Design QA — atualização Android
 
 ## Fonte visual
 
-- Source visual truth: `C:\Users\GABRIE~1\AppData\Local\Temp\codex-clipboard-69f787f8-8199-406a-a306-2a42cfd1f8e9.png`
-- Implementation screenshot: `C:\Users\Gabriel Morgado\Documents\mais ctrl app\mais-ctrl-mobile\test-results\payment-cards-implementation.png`
-- Source pixels: 476 × 838.
+- Source visual truth: `C:\Users\GABRIE~1\AppData\Local\Temp\codex-clipboard-564536fa-7f66-459d-b9ed-0629a12eb3f3.png`
+- Implementation screenshot: `C:\Users\Gabriel Morgado\Documents\mais ctrl app\mais-ctrl-mobile\test-results\app-update-modal-implementation.png`
+- Source pixels: 328 × 126.
 - Implementation pixels: 512 × 968.
-- CSS viewport: mobile runtime at 393 × 852 CSS px, deviceScaleFactor 1; the uploaded reference uses a different phone-frame crop, so the comparison was normalized by the visible app content and hierarchy rather than bezel pixels.
-- State: authenticated local session, `Cartões e faturas`, two locally stored cards (`Nubank` and `Banco Inter`), no update banner, light theme.
+- CSS viewport: mobile runtime at 393 × 852 CSS px, deviceScaleFactor 1; the uploaded reference is a compact cropped banner, so the comparison was normalized by hierarchy, affordance and update messaging rather than raw pixels.
+- State: authenticated local session, light theme, Android build `9.9.9` available, modal opened from the update icon beside the MaisCtrl badge.
 
 ## Comparação
 
 ### Full view
 
-The reference establishes the same order of intent: MaisCtrl header, credit heading, blue credit summary, add-card action, Premium notice and a card collection above the floating navigation. The implementation preserves that hierarchy and expands the compact row into a dedicated visual card section, as requested.
+The reference presents an available-build notification with the version, release note and APK action. The implementation moves that information out of the content stream and into a centered modal opened by a compact update icon, keeping the dashboard usable during the grace period and reserving the blocking state for expiration.
 
 ### Focused region
 
-The card region was checked for the requested details: Nubank uses a purple solid card surface, the CDN logo/name area is visible, the final digits and closing/due dates are present, and the white summary below exposes `Fatura`, `Disponível` and `Limite`. With more than one card, the second card is visibly peeking into the track and the `Carousel` provides the horizontal interaction.
+The modal keeps the reference intent: clear version identification, a short change summary and a direct APK download. The centered white surface, purple action and dimmed background establish focus inside the phone screen. The modal also exposes the remaining six-hour window; after expiration the same surface becomes mandatory, removes the close action and prevents access behind the overlay.
 
 ## Findings
 
 - No actionable P0, P1 or P2 findings remain.
-- Intentional difference: the source shows one compact card row; the implementation promotes it to a physical-card representation and adds horizontal browsing because that is the latest product request.
-- P3 follow-up: a future version can replace the current `Fatura` total with a dedicated invoice history once invoice transactions are modeled separately from the current limit usage.
+- Intentional difference: the inline banner was removed because the requested interaction is an icon beside the badge that opens a centered modal.
+- P3 follow-up: the remaining-time label can later include a localized absolute deadline if the release service starts returning a timezone-aware expiry policy.
 
 ## Comparison history
 
-- Pass 1: the first capture included an available-build banner, which did not belong to the reference state. The QA state was normalized to the installed build before visual judgment.
-- Pass 2: final capture uses the normalized authenticated state, confirms the card surface, metrics, logo treatment, responsive clipping and the horizontal track. No P0/P1/P2 fix was required after this pass.
+- Pass 1: the first implementation was an inline banner, which competed with the dashboard content and did not match the requested interaction.
+- Pass 2: the final capture uses the update icon, centered modal, dimmed focus state, six-hour grace copy and direct APK action. The expired state was also covered by an automated test.
 
 ## Implementation checklist
 
-- [x] Card surface varies by recognized institution, including Nubank purple and Banco Inter blue.
-- [x] CDN logo catalog is reused instead of replacing brand imagery with handcrafted artwork.
-- [x] Fatura, disponível, limite and usage percentage are visible below the card.
-- [x] Multiple cards use the protected runtime `Carousel` component.
-- [x] Empty state and existing add/delete actions remain available.
-- [x] Runtime integrity, build and local application tests pass.
+- [x] Update icon appears beside the MaisCtrl badge only when a newer Android build is detected.
+- [x] Icon opens a centered, focused modal with version, summary and direct APK download.
+- [x] Six-hour grace period is persisted per release version in local storage.
+- [x] Expired grace period locks the app behind a mandatory update modal.
+- [x] Runtime integrity, build and all local application tests pass.
 
 ## Follow-up polish
 
-- Keep the CDN fallback monitored for offline sessions; the initial remains readable when a brand asset cannot load.
+- Keep the release metadata endpoint monitored so the app can detect a newer build when it reconnects after an offline session.
 
 final result: passed

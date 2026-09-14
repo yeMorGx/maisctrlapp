@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
@@ -12,6 +13,8 @@ import {
   CalendarIcon,
   CheckCircledIcon,
   ChevronRightIcon,
+  Cross2Icon,
+  DownloadIcon,
   DotsHorizontalIcon,
   EnvelopeClosedIcon,
   EyeClosedIcon,
@@ -19,6 +22,7 @@ import {
   LockClosedIcon,
   PersonIcon,
   PlusIcon,
+  UpdateIcon,
 } from "@radix-ui/react-icons";
 import {
   FlowStack,
@@ -26,6 +30,7 @@ import {
   Carousel,
   KeyboardInput,
   MobileScroll,
+  useScreenPortal,
   type FlowControls,
   type FlowScreen,
   useMobileDevice,
@@ -39,6 +44,9 @@ const backgroundAsset = "/assets/auth-panels.png";
 const logoAsset = "/assets/logo.svg";
 const androidReleaseApiUrl = "https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest";
 const fallbackAppVersion = import.meta.env.VITE_APP_VERSION || "0.1.53";
+const updateGracePeriodHours = 6;
+const updateGracePeriodMs = updateGracePeriodHours * 60 * 60 * 1000;
+const updateGraceStorageKey = "maisctrl-update-grace-v1";
 
 type AppUpdateRelease = {
   version: string;
@@ -170,21 +178,123 @@ function useAppUpdate() {
   return state;
 }
 
-function AppUpdateBanner({ release }: { release: AppUpdateRelease | null }) {
+type UpdateGrace = {
+  version: string;
+  startedAt: number;
+  expiresAt: number;
+};
+
+function readUpdateGrace(): UpdateGrace | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(updateGraceStorageKey) ?? "null") as Partial<UpdateGrace> | null;
+    if (!parsed || typeof parsed.version !== "string" || typeof parsed.startedAt !== "number" || typeof parsed.expiresAt !== "number") return null;
+    return parsed as UpdateGrace;
+  } catch {
+    return null;
+  }
+}
+
+function writeUpdateGrace(grace: UpdateGrace) {
+  try {
+    window.localStorage.setItem(updateGraceStorageKey, JSON.stringify(grace));
+  } catch {
+    // A sessão sem storage continua com a janela atual em memória.
+  }
+}
+
+function useUpdateGracePeriod(release: AppUpdateRelease | null) {
+  const [grace, setGrace] = useState<UpdateGrace | null>(() => readUpdateGrace());
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!release) return;
+    const stored = readUpdateGrace();
+    if (!stored || stored.version !== release.version) {
+      const startedAt = Date.now();
+      const nextGrace = { version: release.version, startedAt, expiresAt: startedAt + updateGracePeriodMs };
+      writeUpdateGrace(nextGrace);
+      setGrace(nextGrace);
+      setNow(startedAt);
+      return;
+    }
+    setGrace(stored);
+    setNow(Date.now());
+  }, [release]);
+
+  useEffect(() => {
+    if (!release || !grace) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, [grace, release]);
+
+  const remainingMs = grace ? Math.max(0, grace.expiresAt - now) : updateGracePeriodMs;
+  return { remainingMs, isLocked: Boolean(release && grace && remainingMs <= 0) };
+}
+
+function formatUpdateRemaining(remainingMs: number) {
+  if (remainingMs <= 0) return "prazo encerrado";
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  if (hours > 0) return `${hours}h${restMinutes > 0 ? ` ${restMinutes}min` : ""}`;
+  return `${minutes}min`;
+}
+
+function AppUpdateTrigger({ locked, onClick }: { locked: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="dashboard-update-trigger"
+      type="button"
+      data-locked={locked ? "true" : "false"}
+      data-testid="app-update-trigger"
+      aria-label={locked ? "Atualização obrigatória" : "Abrir atualização disponível"}
+      onClick={onClick}
+    >
+      <UpdateIcon aria-hidden="true" />
+      {locked ? <span aria-hidden="true">!</span> : null}
+    </button>
+  );
+}
+
+function AppUpdateModal({ release, open, locked, remainingMs, onOpenChange }: { release: AppUpdateRelease | null; open: boolean; locked: boolean; remainingMs: number; onOpenChange: (open: boolean) => void }) {
+  const { screenRef } = useScreenPortal();
   if (!release) return null;
   const releaseSummary = release.changes[0] || "Correções e melhorias para deixar seu controle financeiro mais estável.";
+  const modalTitle = locked ? "Atualização obrigatória" : "Nova versão disponível";
 
   return (
-    <section className="dashboard-update-banner" data-testid="app-update-banner" role="status">
-      <div className="dashboard-update-copy">
-        <span className="dashboard-eyebrow">Atualização disponível</span>
-        <strong>MaisCtrl {release.version}</strong>
-        <small>{releaseSummary}</small>
-      </div>
-      <a className="dashboard-update-action" href={release.downloadUrl} download="maisctrl.apk" aria-label={`Baixar MaisCtrl ${release.version}`}>
-        Baixar APK
-      </a>
-    </section>
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => { if (!locked) onOpenChange(nextOpen); }}>
+      <Dialog.Portal container={screenRef.current ?? undefined} forceMount>
+        {open ? (
+          <>
+            <Dialog.Overlay asChild forceMount>
+              <motion.div className="app-update-modal-overlay" data-testid="app-update-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            </Dialog.Overlay>
+            <Dialog.Content asChild forceMount>
+              <motion.div className="app-update-modal" data-testid="app-update-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="app-update-modal-icon"><DownloadIcon aria-hidden="true" /></div>
+                <div className="app-update-modal-heading">
+                  <Dialog.Title className="app-update-modal-title">{modalTitle}</Dialog.Title>
+                  <Dialog.Description className="app-update-modal-description">MaisCtrl {release.version} já está disponível.</Dialog.Description>
+                </div>
+                {!locked ? <Dialog.Close asChild><button className="app-update-modal-close" type="button" aria-label="Fechar atualização"><Cross2Icon aria-hidden="true" /></button></Dialog.Close> : null}
+                <p className="app-update-modal-copy">{releaseSummary}</p>
+                <div className="app-update-modal-window" data-locked={locked ? "true" : "false"}>
+                  <span>{locked ? "Acesso bloqueado" : "Você pode continuar por"}</span>
+                  <strong>{locked ? "Atualize para continuar" : formatUpdateRemaining(remainingMs)}</strong>
+                </div>
+                <a className="app-update-modal-action" href={release.downloadUrl} download="maisctrl.apk" aria-label={`Baixar MaisCtrl ${release.version}`}>
+                  <DownloadIcon aria-hidden="true" />
+                  Baixar atualização
+                </a>
+                <small className="app-update-modal-note">Baixe e instale a APK mais recente. Ao abrir a nova versão, o acesso será liberado automaticamente.</small>
+              </motion.div>
+            </Dialog.Content>
+          </>
+        ) : null}
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -3179,6 +3289,8 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   useNativeSystemBars(SystemBarsStyle.Light);
   const subscriptionState = useMobileSubscriptions();
   const appUpdate = useAppUpdate();
+  const updateRelease = appUpdate.status === "available" ? appUpdate.release : null;
+  const updateGrace = useUpdateGracePeriod(updateRelease);
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -3189,6 +3301,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const [isNotificationSheetOpen, setIsNotificationSheetOpen] = useState(false);
   const [isEditProfileSheetOpen, setIsEditProfileSheetOpen] = useState(false);
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [pushTestFeedback, setPushTestFeedback] = useState("");
   const [pushTestFeedbackTone, setPushTestFeedbackTone] = useState<"success" | "error">("success");
@@ -3220,6 +3333,11 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
     setIsNotificationSheetOpen(true);
   };
 
+  const openUpdateModal = () => {
+    keyboard.hide();
+    setIsUpdateModalOpen(true);
+  };
+
   const openEditProfile = () => {
     keyboard.hide();
     setIsEditProfileSheetOpen(true);
@@ -3235,6 +3353,10 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
     keyboard.hide();
     setIsMoreSheetOpen(true);
   };
+
+  useEffect(() => {
+    if (updateGrace.isLocked) setIsUpdateModalOpen(false);
+  }, [updateGrace.isLocked]);
 
   const testPushNotification = async () => {
     if (isTestingPush) return;
@@ -3274,7 +3396,10 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   return (
     <div className="dashboard-screen" data-testid="dashboard-screen">
       <header className="dashboard-topbar">
-        <DashboardSpaceBadge onClick={() => flow.push(coupleSpaceScreen())} />
+        <div className="dashboard-topbar-leading">
+          <DashboardSpaceBadge onClick={() => flow.push(coupleSpaceScreen())} />
+          {updateRelease ? <AppUpdateTrigger locked={updateGrace.isLocked} onClick={openUpdateModal} /> : null}
+        </div>
         <div className="dashboard-header-actions">
           <button className="dashboard-icon-button dashboard-notification-button" type="button" aria-label="Abrir notificações" onClick={openNotifications}>
             <BellIcon aria-hidden="true" />
@@ -3297,7 +3422,6 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               Você está offline. Os lançamentos locais continuam disponíveis neste aparelho.
             </div>
           )}
-          {appUpdate.status === "available" && <AppUpdateBanner release={appUpdate.release} />}
           {accountError && <p className="auth-error dashboard-account-error" role="alert">{accountError}</p>}
           {activeTab === "overview" ? (
             <DashboardOverview
@@ -3341,6 +3465,14 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
           </button>
         ))}
       </nav>
+
+      <AppUpdateModal
+        release={updateRelease}
+        open={Boolean(updateRelease && (isUpdateModalOpen || updateGrace.isLocked))}
+        locked={updateGrace.isLocked}
+        remainingMs={updateGrace.remainingMs}
+        onOpenChange={setIsUpdateModalOpen}
+      />
 
       <AddSubscriptionSheet
         open={isAddSheetOpen}
