@@ -169,6 +169,87 @@ test("MaisCtrl badge opens the fixed +2 space and returns to the dashboard", asy
   await expect(page.getByTestId("couple-screen")).toHaveCount(0);
 });
 
+test("subscription form leaves a gap above the keyboard without scrolling", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+
+  await page.getByRole("button", { name: "Assinaturas", exact: true }).click();
+  await page.getByRole("button", { name: "Nova assinatura" }).click();
+  await expect(page.getByTestId("bottom-sheet")).toBeVisible();
+  await page.getByLabel("Nome").click();
+
+  const sheet = page.getByTestId("bottom-sheet");
+  await expect(sheet).toHaveAttribute("data-scrollable", "false");
+  await expect(sheet.locator(".sheet-content")).toHaveCSS("overflow-y", "hidden");
+  await expect.poll(() => page.locator(".bottom-sheet").evaluate((element) => {
+    const keyboard = document.querySelector<HTMLElement>('[data-testid="keyboard-dock"]');
+    if (!keyboard) return -1;
+    const sheetRect = element.getBoundingClientRect();
+    const keyboardRect = keyboard.getBoundingClientRect();
+    return keyboardRect.top - sheetRect.bottom;
+  })).toBeGreaterThanOrEqual(10);
+
+  const sheetScrollTop = await sheet.locator(".sheet-content").evaluate((element) => element.scrollTop);
+  expect(sheetScrollTop).toBe(0);
+});
+
+test("profile photo upload uses the avatars bucket and saves the profile", async ({ page }) => {
+  await seedLocalSession(page);
+  const uploadRequests: string[] = [];
+
+  await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          full_name: "Teste local",
+          email: "local-test@maisctrl.app",
+          phone_number: null,
+          avatar_url: "https://wdmkzljxjjjvzofrpeuk.supabase.co/storage/v1/object/public/avatars/avatar.png",
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: "[]",
+    });
+  });
+  await page.route("**/storage/v1/object/**", async (route) => {
+    uploadRequests.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ Key: "avatars/local/avatar.png" }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Perfil", exact: true }).click();
+  await page.getByRole("button", { name: "Editar perfil" }).click();
+  await page.getByLabel("Nome completo").fill("Teste local");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("local-avatar"),
+  });
+  await page.getByRole("button", { name: "Salvar perfil" }).click();
+
+  await expect(page.getByTestId("bottom-sheet")).toHaveCount(0);
+  expect(uploadRequests).toHaveLength(1);
+  expect(uploadRequests[0]).toContain("/storage/v1/object/avatars/");
+});
+
 test("finance entries stay available locally after navigation", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({

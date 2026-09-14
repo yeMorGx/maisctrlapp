@@ -17,6 +17,8 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Campos de login reposicionados automaticamente para permanecerem visíveis acima do teclado.
 - Tela de cadastro mantida estática, sem rolagem, com o formulário acima do teclado.
 - Teclado simulado expandido até as laterais da tela, sem falhas nos cantos superiores.
+- Upload de foto de perfil habilitado no Supabase com bucket e políticas de acesso por usuário.
+- Formulários em bottom sheet mantidos fixos, com espaço de segurança acima do teclado.
 
 ## 0.1.28 — 2026-09-10
 

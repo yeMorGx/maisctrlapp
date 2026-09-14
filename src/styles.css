@@ -724,8 +724,21 @@ p {
 }
 
 .sheet-content {
+  min-height: 0;
   overflow: auto;
   padding: 0 18px 24px;
+}
+
+.sheet-content-static {
+  overflow: hidden;
+}
+
+.bottom-sheet[data-keyboard-visible="true"] .sheet-header {
+  padding-bottom: 10px;
+}
+
+.bottom-sheet[data-keyboard-visible="true"] .sheet-content {
+  padding-bottom: 12px;
 }
 
 .keyboard-dock {

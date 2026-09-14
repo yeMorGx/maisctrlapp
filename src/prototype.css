@@ -2057,6 +2057,10 @@ button.dashboard-list-item:focus-visible {
   padding-bottom: 4px;
 }
 
+.bottom-sheet[data-keyboard-visible="true"] .subscription-form {
+  gap: 12px;
+}
+
 .subscription-form .field-label {
   color: #52525b;
 }

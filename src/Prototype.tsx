@@ -1559,12 +1559,6 @@ function AddSubscriptionSheet({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    const timer = window.setTimeout(() => keyboard.hide(), 0);
-    return () => window.clearTimeout(timer);
-  }, [open]);
-
   const reset = () => {
     setName("");
     setValue("");
@@ -1636,6 +1630,7 @@ function AddSubscriptionSheet({
       title="Nova assinatura"
       description="Cadastre uma cobrança para acompanhar seus próximos pagamentos."
       snap={0.72}
+      scrollable={false}
     >
       <form className="subscription-form" onSubmit={submit}>
         <label className="mobile-field" htmlFor="subscription-name">
@@ -1768,12 +1763,6 @@ function SubscriptionActionSheet({
     setError("");
   }, [open, subscription?.id]);
 
-  useEffect(() => {
-    if (!open) return;
-    const timer = window.setTimeout(() => keyboard.hide(), 0);
-    return () => window.clearTimeout(timer);
-  }, [open, mode]);
-
   if (!subscription) return null;
 
   const target = subscriptionTarget(subscription);
@@ -1857,6 +1846,7 @@ function SubscriptionActionSheet({
       title={mode === "edit" ? "Editar assinatura" : subscription.name}
       description={mode === "edit" ? "Atualize os dados dessa cobrança." : "Detalhes e ações da assinatura."}
       snap={0.72}
+      scrollable={mode !== "edit"}
     >
       {mode === "view" ? (
         <div className="subscription-sheet-content">
@@ -2208,6 +2198,7 @@ function EditProfileSheet({
       title="Editar perfil"
       description="Atualize seus dados pessoais."
       snap={0.62}
+      scrollable={false}
     >
       <form className="subscription-form profile-form" onSubmit={submit}>
         <div className="profile-avatar-editor">
@@ -2864,8 +2855,6 @@ function LocalTransactionSheet({
       setDate(transaction.date);
       setError("");
     }
-    const timer = window.setTimeout(() => keyboard.hide(), 0);
-    return () => window.clearTimeout(timer);
   }, [open, transaction?.id]);
 
   const reset = () => {
@@ -2906,6 +2895,7 @@ function LocalTransactionSheet({
       title={transaction ? "Editar lançamento" : "Novo lançamento"}
       description={transaction ? "Corrija os dados deste registro local." : "Organize uma entrada ou saída enquanto o banco não está conectado."}
       snap={0.68}
+      scrollable={false}
     >
       <form className="subscription-form finance-entry-form" onSubmit={submit}>
         <div className="finance-type-switch" role="group" aria-label="Tipo de lançamento">

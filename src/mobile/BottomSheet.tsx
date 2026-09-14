@@ -1,4 +1,4 @@
-import { type PropsWithChildren, useEffect, useState } from "react";
+import { type PropsWithChildren, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useDrag } from "@use-gesture/react";
 import { AnimatePresence, motion } from "motion/react";
@@ -12,6 +12,7 @@ type BottomSheetProps = PropsWithChildren<{
   title: string;
   description?: string;
   snap?: number;
+  scrollable?: boolean;
 }>;
 
 export function BottomSheet({
@@ -20,6 +21,7 @@ export function BottomSheet({
   title,
   description,
   snap = 0.72,
+  scrollable = true,
   children,
 }: BottomSheetProps) {
   const { device } = useMobileDevice();
@@ -27,10 +29,6 @@ export function BottomSheet({
   const keyboard = useKeyboard();
   const { keyboardHeight } = useKeyboardInsets();
   const [dragY, setDragY] = useState(0);
-
-  useEffect(() => {
-    if (open) keyboard.hide();
-  }, [open]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -66,11 +64,13 @@ export function BottomSheet({
   );
 
   const sheetHeight = Math.round(device.geometry.screen.height * snap);
-  const effectiveHeight = Math.max(260, sheetHeight - Math.min(keyboardHeight, 180));
+  const keyboardGap = keyboardHeight > 0 ? 12 : 0;
   const sheetBottom =
     device.platform === "android"
-      ? Math.max(device.geometry.safeArea.bottom, keyboardHeight)
-      : keyboardHeight;
+      ? Math.max(device.geometry.safeArea.bottom, keyboardHeight) + keyboardGap
+      : keyboardHeight + keyboardGap;
+  const availableHeight = device.geometry.screen.height - sheetBottom;
+  const effectiveHeight = Math.max(260, Math.min(sheetHeight, availableHeight));
   const portalContainer = screenRef.current ?? undefined;
 
   return (
@@ -95,6 +95,8 @@ export function BottomSheet({
                 <motion.div
                   className="bottom-sheet"
                   data-testid="bottom-sheet"
+                  data-keyboard-visible={keyboardHeight > 0 ? "true" : "false"}
+                  data-scrollable={scrollable ? "true" : "false"}
                   style={{
                     bottom: sheetBottom,
                     maxHeight: effectiveHeight,
@@ -124,7 +126,7 @@ export function BottomSheet({
                     <Dialog.Title className="sheet-title">{title}</Dialog.Title>
                     {description ? <Dialog.Description className="sheet-description">{description}</Dialog.Description> : null}
                   </div>
-                  <div className="sheet-content">{children}</div>
+                  <div className={`sheet-content${scrollable ? "" : " sheet-content-static"}`}>{children}</div>
                 </motion.div>
               </Dialog.Content>
             </>
