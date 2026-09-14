@@ -4,6 +4,15 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ## Não publicado
 
+### Adicionado
+
+- Hub **Mais** no menu inferior, reunindo cartões, financiamentos, empréstimos, metas, tarefas, relatórios, Ctrl AI, +Couple, +Share e Premium.
+- Módulos locais para cartões e faturas, compromissos de crédito, metas, tarefas e assinaturas compartilhadas, com persistência no aparelho e suporte básico offline.
+- Relatório resumido com exportação CSV e área reservada para exportações Premium em Excel/PDF.
+- Ctrl AI local com respostas orientativas e limite de cinco perguntas no plano Free.
+- Tela de Premium com planos mensal/anual, teste de sete dias, contratação por cartão e indicação clara quando o checkout seguro ainda precisa ser conectado.
+- Área +Couple com código de convite e área +Share com divisão automática 50/50 e status de pagamento.
+
 ### Alterado
 
 - Ícone do app atualizado com a imagem oficial enviada, com fundo preto, no Android, iOS e versão web instalável.

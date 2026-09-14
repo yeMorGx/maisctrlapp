@@ -949,7 +949,23 @@ function PasswordRecoveryScreen({ flow }: { flow: FlowControls }) {
   );
 }
 
-type DashboardTab = "overview" | "finances" | "subscriptions" | "calendar" | "profile";
+type DashboardTab =
+  | "overview"
+  | "finances"
+  | "subscriptions"
+  | "calendar"
+  | "profile"
+  | "cards"
+  | "financings"
+  | "loans"
+  | "goals"
+  | "tasks"
+  | "reports"
+  | "ai"
+  | "premium"
+  | "couple"
+  | "share"
+  | "more";
 
 type MobileSubscription = {
   id: string;
@@ -986,7 +1002,57 @@ type LocalTransaction = {
   date: string;
 };
 
+type LocalCard = {
+  id: string;
+  name: string;
+  last4: string;
+  limit: number;
+  used: number;
+  closingDay: number;
+  dueDay: number;
+};
+
+type LocalDebtKind = "loan" | "financing" | "debt";
+
+type LocalDebt = {
+  id: string;
+  title: string;
+  kind: LocalDebtKind;
+  total: number;
+  paid: number;
+  monthlyPayment: number;
+  dueDate: string;
+};
+
+type LocalGoal = {
+  id: string;
+  title: string;
+  target: number;
+  current: number;
+  deadline: string;
+};
+
+type LocalTask = {
+  id: string;
+  title: string;
+  dueDate: string;
+  done: boolean;
+};
+
+type LocalSharedItem = {
+  id: string;
+  title: string;
+  value: number;
+  split: "50/50" | "custom";
+  status: "pending" | "paid";
+};
+
 const localFinanceStorageKey = "maisctrl-local-finance-v1";
+const localCardsStorageKey = "maisctrl-local-cards-v1";
+const localDebtsStorageKey = "maisctrl-local-debts-v1";
+const localGoalsStorageKey = "maisctrl-local-goals-v1";
+const localTasksStorageKey = "maisctrl-local-tasks-v1";
+const localSharedStorageKey = "maisctrl-local-shared-v1";
 
 function localId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1047,6 +1113,57 @@ function useLocalFinance() {
   };
 
   return { transactions, addTransaction, updateTransaction, removeTransaction };
+}
+
+function readLocalCollection<T>(storageKey: string): T[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function useLocalCollection<T extends { id: string }>(storageKey: string) {
+  const [items, setItems] = useState<T[]>(() => readLocalCollection<T>(storageKey));
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(items));
+    } catch {
+      // O estado segue disponível na sessão quando o storage não está disponível.
+    }
+  }, [items, storageKey]);
+
+  const addItem = (item: Omit<T, "id">) => setItems((current) => [{ ...item, id: localId() } as T, ...current]);
+  const updateItem = (id: string, item: Omit<T, "id">) => setItems((current) => current.map((entry) => entry.id === id ? { ...item, id } as T : entry));
+  const removeItem = (id: string) => setItems((current) => current.filter((entry) => entry.id !== id));
+
+  return { items, addItem, updateItem, removeItem, setItems };
+}
+
+function useLocalCards() {
+  return useLocalCollection<LocalCard>(localCardsStorageKey);
+}
+
+function useLocalDebts() {
+  return useLocalCollection<LocalDebt>(localDebtsStorageKey);
+}
+
+function useLocalGoals() {
+  return useLocalCollection<LocalGoal>(localGoalsStorageKey);
+}
+
+function useLocalTasks() {
+  return useLocalCollection<LocalTask>(localTasksStorageKey);
+}
+
+function useLocalSharedItems() {
+  return useLocalCollection<LocalSharedItem>(localSharedStorageKey);
 }
 
 type MobileNotification = {
@@ -2450,11 +2567,176 @@ function EditProfileSheet({
   );
 }
 
+function localNumber(value: string) {
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isPremiumPlan(plan: MobilePlan | null) {
+  return plan?.plan === "premium" || plan?.plan === "lifetime";
+}
+
+function PremiumBadge() {
+  return <span className="dashboard-premium-badge">Premium</span>;
+}
+
+function LocalDataField({
+  id,
+  label,
+  value,
+  placeholder,
+  type = "text",
+  inputMode,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  type?: string;
+  inputMode?: "text" | "decimal" | "numeric" | "email" | "tel";
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="mobile-field dashboard-tool-field" htmlFor={id}>
+      <span className="field-label">{label}</span>
+      <span className="input-shell">
+        <KeyboardInput id={id} type={type} inputMode={inputMode} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      </span>
+    </label>
+  );
+}
+
+function DashboardMoreSheet({ open, onOpenChange, onSelect }: { open: boolean; onOpenChange: (open: boolean) => void; onSelect: (tab: DashboardTab) => void }) {
+  const items: Array<{ tab: DashboardTab; title: string; description: string; icon: ReactNode; premium?: boolean }> = [
+    { tab: "cards", title: "Cartões e faturas", description: "Limites, faturas e vencimentos", icon: <CardStackIcon aria-hidden="true" /> },
+    { tab: "financings", title: "Parcelas e financiamentos", description: "Acompanhe compromissos longos", icon: <CalendarIcon aria-hidden="true" /> },
+    { tab: "loans", title: "Empréstimos e dívidas", description: "Saldo, parcelas e progresso", icon: <ArrowLeftIcon aria-hidden="true" /> },
+    { tab: "goals", title: "Metas e sonhos", description: "Planeje o que importa", icon: <CheckCircledIcon aria-hidden="true" /> },
+    { tab: "tasks", title: "Tarefas e lembretes", description: "Não deixe uma conta passar", icon: <BellIcon aria-hidden="true" /> },
+    { tab: "reports", title: "Relatórios", description: "Resumo e exportações", icon: <BarChartIcon aria-hidden="true" />, premium: true },
+    { tab: "ai", title: "Ctrl AI", description: "Pergunte sobre seu dinheiro", icon: <DotsHorizontalIcon aria-hidden="true" /> },
+    { tab: "couple", title: "+Couple", description: "Compartilhe tudo a dois", icon: <PersonIcon aria-hidden="true" />, premium: true },
+    { tab: "share", title: "+Share", description: "Divida assinaturas e pagamentos", icon: <CardStackIcon aria-hidden="true" />, premium: true },
+    { tab: "premium", title: "Plano Premium", description: "Mais espaço para organizar", icon: <PlusIcon aria-hidden="true" /> },
+  ];
+
+  return (
+    <BottomSheet open={open} onOpenChange={onOpenChange} title="Mais controles" description="Tudo o que você pode adicionar ao seu espaço." snap={0.82} scrollable={false}>
+      <div className="more-sheet-content">
+        {items.map((item) => <button key={item.tab} className="more-sheet-item" type="button" onClick={() => onSelect(item.tab)}><span className="more-sheet-icon">{item.icon}</span><span className="more-sheet-copy"><strong>{item.title}</strong><small>{item.description}</small></span>{item.premium ? <PremiumBadge /> : null}<ChevronRightIcon aria-hidden="true" /></button>)}
+      </div>
+    </BottomSheet>
+  );
+}
+
+function DashboardCards({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const keyboard = useKeyboard();
+  const { items: cards, addItem, removeItem } = useLocalCards();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const [last4, setLast4] = useState("");
+  const [limit, setLimit] = useState("");
+  const [used, setUsed] = useState("");
+  const [closingDay, setClosingDay] = useState("10");
+  const [dueDay, setDueDay] = useState("17");
+  const premium = isPremiumPlan(plan);
+  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const saveCard = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || localNumber(limit) <= 0) { setMessage("Informe o nome e um limite válido."); return; }
+    if (!premium && cards.length >= 1) { setMessage("O plano Free permite 1 cartão. Desbloqueie cartões ilimitados no Premium."); return; }
+    addItem({ name: name.trim(), last4: last4.replace(/\D/g, "").slice(-4), limit: localNumber(limit), used: Math.min(localNumber(used), localNumber(limit)), closingDay: Math.max(1, Math.min(31, Number(closingDay) || 10)), dueDay: Math.max(1, Math.min(31, Number(dueDay) || 17)) });
+    setName(""); setLast4(""); setLimit(""); setUsed(""); keyboard.hide(); setIsSheetOpen(false);
+  };
+
+  return <>
+    <section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Crédito organizado</span><strong>{cards.length} {cards.length === 1 ? "cartão" : "cartões"}</strong></div><CardStackIcon aria-hidden="true" /><p>{cards.length === 0 ? "Cadastre um cartão para acompanhar limite e fatura." : "A fatura fica visível junto com as próximas contas."}</p></section>
+    <button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Adicionar cartão</button>
+    {!premium && cards.length >= 1 ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Tenha cartões ilimitados no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}
+    <section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Visão rápida</span><h2>Seus cartões</h2></div><span className="dashboard-calendar-count">{cards.length}</span></div>{cards.length > 0 ? cards.map((card) => { const available = Math.max(0, card.limit - card.used); const usage = card.limit > 0 ? Math.min(100, (card.used / card.limit) * 100) : 0; return <div className="dashboard-tool-row" key={card.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{card.name}{card.last4 ? ` ···· ${card.last4}` : ""}</strong><small>Fecha dia {card.closingDay} · vence dia {card.dueDay}</small><span className="dashboard-progress-track"><span style={{ width: `${usage}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(available)}</strong><small>disponível</small><button type="button" className="dashboard-inline-delete" aria-label={`Excluir cartão ${card.name}`} onClick={() => removeItem(card.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Nenhum cartão cadastrado</strong><span>Comece com um cartão para acompanhar sua fatura.</span></div>}</section>
+    <BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Adicionar cartão" description="Os dados ficam neste aparelho nesta primeira versão." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={saveCard}><LocalDataField id="card-name" label="Nome do cartão" placeholder="Ex.: Nubank" value={name} onChange={setName} /><LocalDataField id="card-last4" label="Últimos 4 números" placeholder="0000" value={last4} onChange={setLast4} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="card-limit" label="Limite total" placeholder="5.000,00" value={limit} onChange={setLimit} inputMode="decimal" /><LocalDataField id="card-used" label="Fatura atual" placeholder="0,00" value={used} onChange={setUsed} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id="card-closing" label="Fecha dia" placeholder="10" value={closingDay} onChange={setClosingDay} inputMode="numeric" /><LocalDataField id="card-due" label="Vence dia" placeholder="17" value={dueDay} onChange={setDueDay} inputMode="numeric" /></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar cartão</button></form></BottomSheet>
+  </>;
+}
+
+function DashboardCredit({ mode, plan, onOpenPremium }: { mode: "financings" | "loans"; plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const keyboard = useKeyboard();
+  const { items, addItem, removeItem, setItems } = useLocalDebts();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<LocalDebtKind>(mode === "financings" ? "financing" : "loan");
+  const [total, setTotal] = useState("");
+  const [paid, setPaid] = useState("");
+  const [monthlyPayment, setMonthlyPayment] = useState("");
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
+  const visibleItems = items.filter((item) => mode === "financings" ? item.kind === "financing" : item.kind !== "financing");
+  const totalOpen = visibleItems.reduce((sum, item) => sum + Math.max(0, item.total - item.paid), 0);
+  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(total) <= 0) { setMessage("Informe uma descrição e um valor total válido."); return; } addItem({ title: title.trim(), kind, total: localNumber(total), paid: Math.min(localNumber(paid), localNumber(total)), monthlyPayment: localNumber(monthlyPayment), dueDate }); setTitle(""); setTotal(""); setPaid(""); setMonthlyPayment(""); keyboard.hide(); setIsSheetOpen(false); };
+  const registerPayment = (id: string) => setItems((current) => current.map((item) => item.id === id ? { ...item, paid: Math.min(item.total, item.paid + Math.max(item.monthlyPayment, 0)) } : item));
+  return <>
+    <section className="dashboard-tool-summary" data-tone="orange"><div><span className="dashboard-eyebrow">Compromissos em aberto</span><strong>{formatCurrency(totalOpen)}</strong></div><ArrowLeftIcon aria-hidden="true" /><p>{visibleItems.length === 0 ? "Cadastre seu primeiro compromisso para acompanhar a evolução." : `${visibleItems.length} registro${visibleItems.length === 1 ? "" : "s"} acompanhado${visibleItems.length === 1 ? "" : "s"}.`}</p></section>
+    <button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Adicionar {mode === "financings" ? "financiamento" : "empréstimo"}</button>
+    <section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Acompanhamento</span><h2>{mode === "financings" ? "Financiamentos" : "Empréstimos e dívidas"}</h2></div><span className="dashboard-calendar-count">{visibleItems.length}</span></div>{visibleItems.length > 0 ? visibleItems.map((item) => { const progress = item.total > 0 ? Math.min(100, (item.paid / item.total) * 100) : 0; return <div className="dashboard-tool-row" key={item.id}><span className="dashboard-tool-avatar"><CalendarIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{item.title}</strong><small>{item.kind === "debt" ? "Dívida" : item.kind === "loan" ? "Empréstimo" : "Financiamento"} · vence {formatShortDate(item.dueDate)}</small><span className="dashboard-progress-track"><span style={{ width: `${progress}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(Math.max(0, item.total - item.paid))}</strong><small>{Math.round(progress)}% pago</small><button type="button" className="dashboard-inline-action" onClick={() => registerPayment(item.id)} disabled={item.paid >= item.total}>Registrar parcela</button><button type="button" className="dashboard-inline-delete" aria-label={`Excluir ${item.title}`} onClick={() => removeItem(item.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Sem registros por enquanto</strong><span>Você poderá acompanhar valor pago e saldo restante.</span></div>}</section>
+    {!isPremiumPlan(plan) ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Desbloqueie históricos e limites maiores no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}
+    <BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title={mode === "financings" ? "Adicionar financiamento" : "Adicionar empréstimo"} description="Acompanhe o saldo de forma simples." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id={`${mode}-title`} label="Descrição" placeholder={mode === "financings" ? "Ex.: Carro" : "Ex.: Empréstimo pessoal"} value={title} onChange={setTitle} /><label className="mobile-field dashboard-tool-field" htmlFor={`${mode}-kind`}><span className="field-label">Tipo</span><select id={`${mode}-kind`} value={kind} onChange={(event) => setKind(event.target.value as LocalDebtKind)}><option value="loan">Empréstimo</option><option value="debt">Dívida</option><option value="financing">Financiamento</option></select></label><div className="subscription-form-grid"><LocalDataField id={`${mode}-total`} label="Valor total" placeholder="10.000,00" value={total} onChange={setTotal} inputMode="decimal" /><LocalDataField id={`${mode}-paid`} label="Já pago" placeholder="0,00" value={paid} onChange={setPaid} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id={`${mode}-monthly`} label="Parcela" placeholder="500,00" value={monthlyPayment} onChange={setMonthlyPayment} inputMode="decimal" /><label className="mobile-field dashboard-tool-field" htmlFor={`${mode}-due`}><span className="field-label">Próximo vencimento</span><span className="input-shell"><KeyboardInput id={`${mode}-due`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></span></label></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar registro</button></form></BottomSheet>
+  </>;
+}
+
+function DashboardGoals({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const keyboard = useKeyboard();
+  const { items: goals, addItem, removeItem } = useLocalGoals();
+  const [isSheetOpen, setIsSheetOpen] = useState(false); const [message, setMessage] = useState(""); const [title, setTitle] = useState(""); const [target, setTarget] = useState(""); const [current, setCurrent] = useState(""); const [deadline, setDeadline] = useState("");
+  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(target) <= 0) { setMessage("Informe um nome e um valor de meta válido."); return; } addItem({ title: title.trim(), target: localNumber(target), current: Math.min(localNumber(current), localNumber(target)), deadline }); setTitle(""); setTarget(""); setCurrent(""); setDeadline(""); keyboard.hide(); setIsSheetOpen(false); };
+  return <><section className="dashboard-tool-summary" data-tone="violet"><div><span className="dashboard-eyebrow">Planos que importam</span><strong>{goals.length} {goals.length === 1 ? "meta" : "metas"}</strong></div><CheckCircledIcon aria-hidden="true" /><p>Transforme objetivos em passos visíveis, com prazo e progresso.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova meta</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Seus objetivos</span><h2>Metas e sonhos</h2></div><span className="dashboard-calendar-count">{goals.length}</span></div>{goals.length > 0 ? goals.map((goal) => { const progress = goal.target > 0 ? Math.min(100, (goal.current / goal.target) * 100) : 0; return <div className="dashboard-goal-card" key={goal.id}><div className="dashboard-goal-heading"><strong>{goal.title}</strong><span>{Math.round(progress)}%</span></div><div className="dashboard-progress-track"><span style={{ width: `${progress}%` }} /></div><div className="dashboard-goal-meta"><span>{formatCurrency(goal.current)} de {formatCurrency(goal.target)}</span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(goal.id)}>Excluir</button></div>{goal.deadline ? <small>Prazo: {formatAgendaDate(goal.deadline)}</small> : null}</div>; }) : <div className="dashboard-data-state"><strong>Nenhuma meta criada</strong><span>Uma reserva, uma viagem ou qualquer sonho começa aqui.</span></div>}</section>{!isPremiumPlan(plan) ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Crie metas ilimitadas e acompanhe relatórios no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}<BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Criar meta" description="Defina o que você quer alcançar." snap={0.68} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="goal-title" label="Nome da meta" placeholder="Ex.: Reserva de emergência" value={title} onChange={setTitle} /><div className="subscription-form-grid"><LocalDataField id="goal-target" label="Valor alvo" placeholder="20.000,00" value={target} onChange={setTarget} inputMode="decimal" /><LocalDataField id="goal-current" label="Já guardado" placeholder="0,00" value={current} onChange={setCurrent} inputMode="decimal" /></div><label className="mobile-field dashboard-tool-field" htmlFor="goal-deadline"><span className="field-label">Prazo (opcional)</span><span className="input-shell"><KeyboardInput id="goal-deadline" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></span></label>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar meta</button></form></BottomSheet></>;
+}
+
+function DashboardTasks() {
+  const keyboard = useKeyboard(); const { items: tasks, addItem, removeItem, setItems } = useLocalTasks(); const [isSheetOpen, setIsSheetOpen] = useState(false); const [title, setTitle] = useState(""); const [dueDate, setDueDate] = useState(""); const [message, setMessage] = useState("");
+  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }; const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim()) { setMessage("Informe o que precisa ser feito."); return; } addItem({ title: title.trim(), dueDate, done: false }); setTitle(""); setDueDate(""); keyboard.hide(); setIsSheetOpen(false); };
+  return <><section className="dashboard-tool-summary" data-tone="pink"><div><span className="dashboard-eyebrow">Próximos passos</span><strong>{tasks.filter((task) => !task.done).length} pendentes</strong></div><BellIcon aria-hidden="true" /><p>Crie lembretes para vencimentos, revisões e decisões financeiras.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova tarefa</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Organização</span><h2>Tarefas e lembretes</h2></div><span className="dashboard-calendar-count">{tasks.length}</span></div>{tasks.length > 0 ? tasks.map((task) => <div className="dashboard-task-row" key={task.id} data-done={task.done ? "true" : "false"}><button type="button" className="dashboard-task-check" aria-label={`${task.done ? "Reabrir" : "Concluir"} tarefa ${task.title}`} onClick={() => setItems((current) => current.map((entry) => entry.id === task.id ? { ...entry, done: !entry.done } : entry))}>{task.done ? <CheckCircledIcon aria-hidden="true" /> : <span />}</button><span className="dashboard-list-copy"><strong>{task.title}</strong><small>{task.dueDate ? `Até ${formatAgendaDate(task.dueDate)}` : "Sem prazo definido"}</small></span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(task.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma tarefa pendente</strong><span>Adicione um lembrete para cuidar do próximo passo.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Nova tarefa" description="Um lembrete simples para sua rotina." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="task-title" label="Tarefa" placeholder="Ex.: Conferir fatura" value={title} onChange={setTitle} /><label className="mobile-field dashboard-tool-field" htmlFor="task-due"><span className="field-label">Prazo (opcional)</span><span className="input-shell"><KeyboardInput id="task-due" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></span></label>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar tarefa</button></form></BottomSheet></>;
+}
+
+function downloadLocalFile(filename: string, content: string, type: string) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url); }
+
+function DashboardReports({ subscriptions, plan, onOpenPremium }: { subscriptions: MobileSubscription[]; plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const { transactions } = useLocalFinance(); const income = transactions.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.value, 0); const expenses = transactions.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.value, 0); const recurring = subscriptions.reduce((sum, entry) => sum + monthlySubscriptionValue(entry), 0); const exportCsv = () => downloadLocalFile(`maisctrl-relatorio-${new Date().toISOString().slice(0, 10)}.csv`, ["indicador;valor", `entradas;${income.toFixed(2)}`, `saidas;${expenses.toFixed(2)}`, `assinaturas_mensais;${recurring.toFixed(2)}`, `saldo;${(income - expenses).toFixed(2)}`].join("\n"), "text/csv;charset=utf-8");
+  return <><section className="dashboard-tool-summary" data-tone="green"><div><span className="dashboard-eyebrow">Leitura do momento</span><strong>{formatCurrency(income - expenses)}</strong></div><BarChartIcon aria-hidden="true" /><p>Resumo criado com seus lançamentos locais e assinaturas sincronizadas.</p></section><div className="dashboard-report-grid"><div><span>Entradas</span><strong>{formatCurrency(income)}</strong></div><div><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div><div><span>Recorrentes</span><strong>{formatCurrency(recurring)}</strong></div><div><span>Assinaturas</span><strong>{subscriptions.length}</strong></div></div><section className="dashboard-list-card dashboard-report-actions"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Exportar</span><h2>Leve seus dados</h2></div><PremiumBadge /></div><button className="dashboard-secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button><button className="dashboard-secondary-button" type="button" onClick={onOpenPremium} disabled={!isPremiumPlan(plan)}>{isPremiumPlan(plan) ? "Exportar Excel / PDF" : "Excel e PDF no Premium"}</button><p>O CSV funciona offline. Os formatos avançados ficam disponíveis no plano Premium.</p></section></>;
+}
+
+function DashboardAI({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const keyboard = useKeyboard(); const premium = isPremiumPlan(plan); const [prompt, setPrompt] = useState(""); const [count, setCount] = useState(0); const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([{ role: "assistant", text: "Posso resumir seus lançamentos, encontrar padrões e ajudar a planejar o próximo passo." }]);
+  const send = () => { const cleanPrompt = prompt.trim(); if (!cleanPrompt) return; if (!premium && count >= 5) { onOpenPremium(); return; } const lower = cleanPrompt.toLocaleLowerCase("pt-BR"); const answer = lower.includes("econom") || lower.includes("cortar") ? "Comece olhando as maiores saídas do mês e as cobranças recorrentes. O relatório do MaisCtrl ajuda a separar o que é fixo do que pode ser reduzido." : lower.includes("meta") ? "Uma boa meta começa com valor, prazo e um aporte que caiba no mês. Crie uma meta no menu Mais para acompanhar esse progresso." : "Entendi. Para uma resposta completa, conecte seus lançamentos e assinaturas; por enquanto posso orientar com base no que está salvo neste aparelho."; setMessages((current) => [...current, { role: "user", text: cleanPrompt }, { role: "assistant", text: answer }]); setCount((current) => current + 1); setPrompt(""); keyboard.hide(); };
+  return <><section className="dashboard-tool-summary" data-tone="violet"><div><span className="dashboard-eyebrow">Seu copiloto</span><strong>Ctrl AI</strong></div><DotsHorizontalIcon aria-hidden="true" /><p>{premium ? "Uso ilimitado no Premium." : `${Math.max(0, 5 - count)} perguntas gratuitas restantes hoje.`}</p></section><section className="dashboard-ai-card"><div className="dashboard-ai-messages">{messages.map((message, index) => <div className="dashboard-ai-message" data-role={message.role} key={`${message.role}-${index}`}><span>{message.role === "assistant" ? "Ctrl AI" : "Você"}</span><p>{message.text}</p></div>)}</div><div className="dashboard-ai-presets"><button type="button" onClick={() => setPrompt("Como posso economizar este mês?")}>Como economizar?</button><button type="button" onClick={() => setPrompt("Me ajude com uma meta")}>Criar uma meta</button></div><div className="dashboard-ai-input"><KeyboardInput aria-label="Pergunte ao Ctrl AI" value={prompt} placeholder="Pergunte ao Ctrl AI" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); send(); } }} /><button type="button" aria-label="Enviar pergunta" onClick={send} disabled={!prompt.trim()}><ChevronRightIcon aria-hidden="true" /></button></div></section>{!premium ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Use o Ctrl AI sem limite com o Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}</>;
+}
+
+function DashboardPremium({ plan }: { plan: MobilePlan | null }) {
+  const keyboard = useKeyboard(); const [billing, setBilling] = useState<"monthly" | "annual">("annual"); const [isCardFormOpen, setIsCardFormOpen] = useState(false); const [message, setMessage] = useState(""); const [cardName, setCardName] = useState(""); const [cardNumber, setCardNumber] = useState(""); const [cardExpiry, setCardExpiry] = useState(""); const [cardCvv, setCardCvv] = useState(""); const active = isPremiumPlan(plan);
+  const submitCard = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setMessage("A cobrança segura por cartão será ativada assim que o provedor de pagamentos estiver configurado para esta conta. Nenhum dado do cartão foi salvo."); keyboard.hide(); setIsCardFormOpen(false); };
+  return <><section className="premium-hero-card"><span className="dashboard-eyebrow">Mais espaço para você</span><h2>{active ? "Seu Premium está ativo." : "Organize tudo com Premium."}</h2><p>Metas, relatórios, Ctrl AI, múltiplos cartões e +Couple em um só lugar.</p><div className="premium-plan-switch" role="tablist" aria-label="Periodicidade do Premium"><button type="button" role="tab" aria-selected={billing === "monthly"} data-active={billing === "monthly"} onClick={() => setBilling("monthly")}>Mensal<br /><strong>R$ 19,90</strong></button><button type="button" role="tab" aria-selected={billing === "annual"} data-active={billing === "annual"} onClick={() => setBilling("annual")}>Anual <span>economize</span><br /><strong>R$ 14,90/mês</strong></button></div><small>7 dias grátis · cancele quando quiser</small></section><section className="dashboard-list-card premium-feature-card"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Incluído</span><h2>O que você desbloqueia</h2></div><PremiumBadge /></div>{["Cartões e contas ilimitados", "Relatórios em Excel e PDF", "Ctrl AI sem limite", "+Couple e +Share para compartilhar", "Open Finance quando disponível"].map((feature) => <div className="premium-feature-row" key={feature}><CheckCircledIcon aria-hidden="true" /><span>{feature}</span></div>)}</section>{!active ? <button className="dashboard-primary-button premium-cta" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsCardFormOpen(true); }}>Continuar com cartão</button> : <div className="dashboard-success-note" role="status">Plano atual: {formatPlan(plan)} · {formatPlanDetail(plan)}</div>}{message ? <p className="dashboard-push-feedback" data-tone="error" role="status">{message}</p> : null}<BottomSheet open={isCardFormOpen} onOpenChange={setIsCardFormOpen} title="Assinar Premium" description={`Plano ${billing === "annual" ? "anual" : "mensal"} · 7 dias grátis`} snap={0.72} scrollable={false}><form className="dashboard-tool-form" onSubmit={submitCard}><LocalDataField id="premium-card-name" label="Nome no cartão" placeholder="Nome completo" value={cardName} onChange={setCardName} /><LocalDataField id="premium-card-number" label="Número do cartão" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={setCardNumber} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="premium-card-expiry" label="Validade" placeholder="MM/AA" value={cardExpiry} onChange={setCardExpiry} /><LocalDataField id="premium-card-cvv" label="CVV" placeholder="000" value={cardCvv} onChange={setCardCvv} inputMode="numeric" /></div><p className="subscription-sheet-note">Por segurança, estes dados não são armazenados no app. A próxima etapa conecta o checkout oficial de cartão.</p><button className="dashboard-primary-button subscription-submit" type="submit">Continuar com segurança</button></form></BottomSheet></>;
+}
+
+function DashboardCouple({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const [code] = useState(() => `CASAL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`); const [feedback, setFeedback] = useState(""); const premium = isPremiumPlan(plan); const copyCode = async () => { try { await navigator.clipboard.writeText(code); setFeedback("Código copiado."); } catch { setFeedback(`Compartilhe este código: ${code}`); } };
+  return <><section className="dashboard-tool-summary" data-tone="pink"><div><span className="dashboard-eyebrow">Tudo compartilhado</span><strong>+Couple</strong></div><PersonIcon aria-hidden="true" /><p>Entradas, gastos, metas e assinaturas podem ser editados pelos dois.</p></section>{!premium ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>O +Couple faz parte do plano Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : <section className="dashboard-list-card couple-local-card"><span className="dashboard-eyebrow">Convite do casal</span><h2>Compartilhe seu código</h2><p>Envie o código para a outra pessoa entrar no mesmo espaço.</p><div className="couple-code-box"><strong>{code}</strong><button className="dashboard-secondary-button" type="button" onClick={copyCode}>Copiar código</button></div>{feedback ? <p className="dashboard-push-feedback" data-tone="success" role="status">{feedback}</p> : null}</section>}<section className="dashboard-list-card couple-shared-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Visibilidade</span><h2>Dados a dois</h2></div><CheckCircledIcon aria-hidden="true" /></div>{["Lançamentos compartilhados", "Metas e sonhos do casal", "Assinaturas divididas", "Notificações de alterações"].map((item) => <div className="premium-feature-row" key={item}><CheckCircledIcon aria-hidden="true" /><span>{item}</span></div>)}</section></>;
+}
+
+function DashboardShare({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
+  const keyboard = useKeyboard(); const { items, addItem, removeItem, setItems } = useLocalSharedItems(); const premium = isPremiumPlan(plan); const [title, setTitle] = useState(""); const [value, setValue] = useState(""); const [isSheetOpen, setIsSheetOpen] = useState(false); const [message, setMessage] = useState("");
+  const addShared = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(value) <= 0) { setMessage("Informe o nome e o valor da assinatura."); return; } addItem({ title: title.trim(), value: localNumber(value), split: "50/50", status: "pending" }); setTitle(""); setValue(""); keyboard.hide(); setIsSheetOpen(false); };
+  if (!premium) return <><section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Divisão automática</span><strong>+Share</strong></div><CardStackIcon aria-hidden="true" /><p>Compartilhe uma assinatura e acompanhe quem já pagou.</p></section><button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>O +Share está disponível no plano Premium.</span><ChevronRightIcon aria-hidden="true" /></button></>;
+  return <><section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Assinaturas em conjunto</span><strong>{items.length} compartilhadas</strong></div><CardStackIcon aria-hidden="true" /><p>Divisão 50/50 e status de pagamento em um só lugar.</p></section><button className="dashboard-primary-button" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }}><PlusIcon aria-hidden="true" />Compartilhar assinatura</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">A dois</span><h2>+Share</h2></div><span className="dashboard-calendar-count">{items.length}</span></div>{items.length > 0 ? items.map((item) => <div className="dashboard-tool-row" key={item.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{item.title}</strong><small>{formatCurrency(item.value / 2)} para cada pessoa · {item.status === "paid" ? "pago" : "aguardando pagamento"}</small></span><button type="button" className="dashboard-inline-action" onClick={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: entry.status === "paid" ? "pending" : "paid" } : entry))}>{item.status === "paid" ? "Reabrir" : "Marcar pago"}</button><button type="button" className="dashboard-inline-delete" onClick={() => removeItem(item.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma assinatura compartilhada</strong><span>Adicione uma assinatura para dividir automaticamente.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Compartilhar assinatura" description="A divisão padrão é 50% para cada pessoa." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={addShared}><LocalDataField id="share-title" label="Nome da assinatura" placeholder="Ex.: Streaming" value={title} onChange={setTitle} /><LocalDataField id="share-value" label="Valor mensal" placeholder="59,90" value={value} onChange={setValue} inputMode="decimal" /><p className="subscription-sheet-note">O outro participante receberá o status de pagamento quando o compartilhamento estiver conectado à conta.</p>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar compartilhamento</button></form></BottomSheet></>;
+}
+
 const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNode }> = [
   { id: "overview", label: "Início", icon: <BarChartIcon aria-hidden="true" /> },
   { id: "finances", label: "Finanças", icon: <DotsHorizontalIcon aria-hidden="true" /> },
   { id: "subscriptions", label: "Assinaturas", icon: <CardStackIcon aria-hidden="true" /> },
   { id: "calendar", label: "Calendário", icon: <CalendarIcon aria-hidden="true" /> },
+  { id: "more", label: "Mais", icon: <PlusIcon aria-hidden="true" /> },
 ];
 
 function DashboardScreen({ flow }: { flow: FlowControls }) {
@@ -2471,6 +2753,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const [isSubscriptionSheetOpen, setIsSubscriptionSheetOpen] = useState(false);
   const [isNotificationSheetOpen, setIsNotificationSheetOpen] = useState(false);
   const [isEditProfileSheetOpen, setIsEditProfileSheetOpen] = useState(false);
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [pushTestFeedback, setPushTestFeedback] = useState("");
   const [pushTestFeedbackTone, setPushTestFeedbackTone] = useState<"success" | "error">("success");
@@ -2505,6 +2788,17 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const openEditProfile = () => {
     keyboard.hide();
     setIsEditProfileSheetOpen(true);
+  };
+
+  const navigateToTab = (tab: DashboardTab) => {
+    keyboard.hide();
+    setIsMoreSheetOpen(false);
+    if (tab !== "more") setActiveTab(tab);
+  };
+
+  const openMore = () => {
+    keyboard.hide();
+    setIsMoreSheetOpen(true);
   };
 
   const testPushNotification = async () => {
@@ -2551,7 +2845,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
             <BellIcon aria-hidden="true" />
             {notifications.length > 0 && <span className="dashboard-notification-badge">{notifications.length > 9 ? "9+" : notifications.length}</span>}
           </button>
-          <button className="dashboard-icon-button dashboard-profile-button" type="button" aria-label="Abrir perfil" onClick={() => setActiveTab("profile")}>
+          <button className="dashboard-icon-button dashboard-profile-button" type="button" aria-label="Abrir perfil" onClick={() => navigateToTab("profile")}>
             {subscriptionState.profile?.avatar_url ? (
               <img src={subscriptionState.profile.avatar_url} alt="" draggable={false} />
             ) : (
@@ -2574,7 +2868,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               {...subscriptionState}
               notificationCount={notifications.length}
               onOpenNotifications={openNotifications}
-              onTabChange={setActiveTab}
+              onTabChange={navigateToTab}
               onAddSubscription={openAddSubscription}
               onSubscriptionClick={openSubscriptionActions}
             />
@@ -2591,6 +2885,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               isTestingPush={isTestingPush}
               pushTestFeedback={pushTestFeedback}
               pushTestFeedbackTone={pushTestFeedbackTone}
+              onOpenPremium={() => navigateToTab("premium")}
             />
           )}
         </main>
@@ -2602,8 +2897,8 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
             key={item.id}
             className="dashboard-nav-item"
             type="button"
-            data-active={activeTab === item.id}
-            onClick={() => setActiveTab(item.id)}
+            data-active={activeTab === item.id || (item.id === "more" && isMoreSheetOpen)}
+            onClick={() => item.id === "more" ? openMore() : navigateToTab(item.id)}
           >
             {item.icon}
             <span>{item.label}</span>
@@ -2636,6 +2931,12 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
         open={isEditProfileSheetOpen}
         onOpenChange={setIsEditProfileSheetOpen}
         onSaved={subscriptionState.refresh}
+      />
+
+      <DashboardMoreSheet
+        open={isMoreSheetOpen}
+        onOpenChange={setIsMoreSheetOpen}
+        onSelect={navigateToTab}
       />
     </div>
   );
@@ -3435,6 +3736,7 @@ function DashboardModule({
   isTestingPush,
   pushTestFeedback,
   pushTestFeedbackTone,
+  onOpenPremium,
 }: {
   tab: Exclude<DashboardTab, "overview">;
   subscriptions: MobileSubscription[];
@@ -3454,6 +3756,7 @@ function DashboardModule({
   isTestingPush: boolean;
   pushTestFeedback: string;
   pushTestFeedbackTone: "success" | "error";
+  onOpenPremium: () => void;
 }) {
   const moduleCopy = {
     finances: {
@@ -3480,6 +3783,72 @@ function DashboardModule({
       description: "Preferências, plano e segurança.",
       action: "Editar perfil",
     },
+    cards: {
+      eyebrow: "Crédito organizado",
+      title: "Cartões e faturas",
+      description: "Acompanhe limites, faturas e datas importantes.",
+      action: "Adicionar cartão",
+    },
+    financings: {
+      eyebrow: "Compromissos longos",
+      title: "Parcelas e financiamentos",
+      description: "Veja quanto já foi pago e o que ainda falta.",
+      action: "Adicionar financiamento",
+    },
+    loans: {
+      eyebrow: "Crédito e dívidas",
+      title: "Empréstimos e dívidas",
+      description: "Organize saldos e acompanhe cada parcela.",
+      action: "Adicionar empréstimo",
+    },
+    goals: {
+      eyebrow: "Planos que importam",
+      title: "Metas e sonhos",
+      description: "Dê um prazo e um caminho para cada objetivo.",
+      action: "Nova meta",
+    },
+    tasks: {
+      eyebrow: "Organização",
+      title: "Tarefas e lembretes",
+      description: "Pequenos lembretes para cuidar do seu dinheiro.",
+      action: "Nova tarefa",
+    },
+    reports: {
+      eyebrow: "Visão financeira",
+      title: "Relatórios",
+      description: "Entenda seu momento com dados simples.",
+      action: "Exportar relatório",
+    },
+    ai: {
+      eyebrow: "Seu copiloto",
+      title: "Ctrl AI",
+      description: "Pergunte, entenda e tome decisões com mais clareza.",
+      action: "Perguntar",
+    },
+    premium: {
+      eyebrow: "Plano MaisCtrl",
+      title: "Premium",
+      description: "Mais espaço para compartilhar e organizar.",
+      action: "Assinar Premium",
+    },
+    couple: {
+      eyebrow: "Espaço compartilhado",
+      title: "+Couple",
+      description: "O dinheiro de vocês, no mesmo lugar.",
+      action: "Conectar casal",
+    },
+    share: {
+      eyebrow: "Assinaturas em conjunto",
+      title: "+Share",
+      description: "Divida assinaturas e acompanhe pagamentos.",
+      action: "Compartilhar assinatura",
+    },
+    more: {
+      eyebrow: "Mais controles",
+      title: "Mais",
+      description: "Escolha uma área para continuar.",
+      action: "Abrir controles",
+    },
   }[tab];
 
   return (
@@ -3491,7 +3860,7 @@ function DashboardModule({
         <button className="dashboard-secondary-button dashboard-profile-edit-button" type="button" onClick={onEditProfile}>
           Editar perfil
         </button>
-      ) : tab === "finances" ? null : (
+      ) : tab === "finances" || ["cards", "financings", "loans", "goals", "tasks", "reports", "ai", "premium", "couple", "share"].includes(tab) ? null : (
         <button className="dashboard-primary-button" type="button" onClick={onAddSubscription}>
           <PlusIcon aria-hidden="true" />
           {moduleCopy.action}
@@ -3508,6 +3877,26 @@ function DashboardModule({
           refresh={refresh}
           onSubscriptionClick={onSubscriptionClick}
         />
+      ) : tab === "cards" ? (
+        <DashboardCards plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "financings" ? (
+        <DashboardCredit mode="financings" plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "loans" ? (
+        <DashboardCredit mode="loans" plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "goals" ? (
+        <DashboardGoals plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "tasks" ? (
+        <DashboardTasks />
+      ) : tab === "reports" ? (
+        <DashboardReports subscriptions={subscriptions} plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "ai" ? (
+        <DashboardAI plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "premium" ? (
+        <DashboardPremium plan={plan} />
+      ) : tab === "couple" ? (
+        <DashboardCouple plan={plan} onOpenPremium={onOpenPremium} />
+      ) : tab === "share" ? (
+        <DashboardShare plan={plan} onOpenPremium={onOpenPremium} />
       ) : (
       <section className="dashboard-list-card dashboard-module-card">
         {tab === "profile" ? (
