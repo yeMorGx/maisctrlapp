@@ -13,6 +13,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Cadastro de assinaturas reorganizado em um fluxo modal de três etapas, com revisão antes de salvar.
 - Badge principal renomeado para MaisCtrl e espaço do casal identificado como +Couple após o clique.
 - Avatar do perfil exibido no botão do cabeçalho, ao lado das notificações.
+- Menu inferior redesenhado como dock flutuante, com aba ativa destacada e respiro para a área segura do aparelho.
 
 ### Corrigido
 

@@ -205,6 +205,31 @@ test("welcome page stays fixed without a scroll container", async ({ page }) => 
   expect(Math.abs(after.y - before.y)).toBeLessThan(1);
 });
 
+test("dashboard navigation uses a floating dock with a clear active tab", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(navigation).toHaveCSS("border-radius", "22px");
+  await expect(navigation).toHaveCSS("right", "12px");
+  const navigationBox = await navigation.boundingBox();
+  const dashboardBox = await page.getByTestId("dashboard-screen").boundingBox();
+  if (!navigationBox || !dashboardBox) throw new Error("Navigation or dashboard has no bounding box");
+  expect(navigationBox.y).toBeGreaterThan(dashboardBox.y + dashboardBox.height / 2);
+  expect(navigationBox.y + navigationBox.height).toBeLessThanOrEqual(dashboardBox.y + dashboardBox.height);
+  await expect(navigation.getByRole("button", { name: "Início", exact: true })).toHaveAttribute("data-active", "true");
+
+  await navigation.getByRole("button", { name: "Finanças", exact: true }).click();
+  await expect(navigation.getByRole("button", { name: "Finanças", exact: true })).toHaveAttribute("data-active", "true");
+  await expect(navigation.getByRole("button", { name: "Início", exact: true })).toHaveAttribute("data-active", "false");
+});
+
 test("MaisCtrl badge changes to the fixed +Couple space and returns to the dashboard", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({

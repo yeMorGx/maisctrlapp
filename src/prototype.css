@@ -630,6 +630,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+  --mobile-safe-area-height: var(--device-safe-area-bottom, 0px);
   background: #f7f7f8;
   color: #18181b;
 }
@@ -2475,39 +2476,59 @@ button.dashboard-list-item:focus-visible {
 .dashboard-bottom-nav {
   position: absolute;
   z-index: 8;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 12px;
+  bottom: calc(var(--mobile-safe-area-height) + 9px);
+  left: 12px;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  min-height: 78px;
-  padding: 8px 10px calc(var(--mobile-safe-area-height) + 7px);
-  border-top: 1px solid #e4e4e7;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(12px);
+  min-height: 64px;
+  padding: 7px;
+  border: 1px solid rgba(228, 228, 231, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 12px 28px rgba(24, 24, 27, 0.13), 0 2px 7px rgba(24, 24, 27, 0.06);
+  backdrop-filter: blur(18px) saturate(1.08);
 }
 
 .dashboard-nav-item {
   display: grid;
+  min-height: 50px;
+  align-content: center;
   justify-items: center;
   gap: 4px;
   padding: 5px 2px;
-  border: 0;
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
   background: transparent;
   color: #a1a1aa;
   font-size: 9px;
   font-weight: 750;
+  line-height: 1;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .dashboard-nav-item svg {
   width: 18px;
   height: 18px;
+  transition: transform 160ms ease;
 }
 
 .dashboard-nav-item[data-active="true"] {
-  background: #f4f4f5;
-  color: #18181b;
+  border-color: #18181b;
+  background: #18181b;
+  color: #ffffff;
+  box-shadow: 0 6px 12px rgba(24, 24, 27, 0.18);
+}
+
+.dashboard-nav-item[data-active="true"] svg {
+  transform: translateY(-1px);
+}
+
+.dashboard-nav-item:not([data-active="true"]):hover,
+.dashboard-nav-item:not([data-active="true"]):focus-visible {
+  border-color: #e4e4e7;
+  background: rgba(244, 244, 245, 0.8);
+  color: #52525b;
 }
 
 .dashboard-module {
