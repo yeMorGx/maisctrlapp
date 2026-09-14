@@ -1272,6 +1272,15 @@ function formatFrequency(frequency: string) {
   } as Record<string, string>)[frequency] ?? frequency;
 }
 
+function formatPaymentMethod(method: string) {
+  return ({
+    credit: "cartão de crédito",
+    debit: "cartão de débito",
+    pix: "Pix",
+    boleto: "boleto",
+  } as Record<string, string>)[method] ?? method;
+}
+
 function formatPlan(plan: MobilePlan | null) {
   if (!plan || plan.plan === "free") return "Free";
   if (plan.plan === "lifetime") return "Vitalício";
@@ -2143,11 +2152,27 @@ function SubscriptionActionSheet({
     >
       {mode === "view" ? (
         <div className="subscription-sheet-content">
+          <div className="subscription-sheet-identity">
+            <SubscriptionAvatar name={subscription.name} tone={subscriptionTone(subscription.name.length)} />
+            <div className="subscription-sheet-identity-copy">
+              <span className="dashboard-eyebrow">Cobrança recorrente</span>
+              <strong>{subscription.name}</strong>
+              <span className="subscription-sheet-next-date">Próxima cobrança em {formatAgendaDate(subscription.renewal_date)}</span>
+            </div>
+            <div className="subscription-sheet-price">
+              <strong>{formatCurrency(subscription.value)}</strong>
+              <span>por cobrança</span>
+            </div>
+          </div>
+
           <div className="subscription-sheet-summary">
-            <div><span>Valor</span><strong>{formatCurrency(subscription.value)}</strong></div>
+            <div className="subscription-sheet-summary-featured">
+              <span>Próxima renovação</span>
+              <strong>{formatAgendaDate(subscription.renewal_date)}</strong>
+              <small>Seu próximo ciclo começa nesta data.</small>
+            </div>
             <div><span>Frequência</span><strong>{formatFrequency(subscription.frequency)}</strong></div>
-            <div><span>Próxima renovação</span><strong>{formatAgendaDate(subscription.renewal_date)}</strong></div>
-            <div><span>Pagamento</span><strong>{subscription.payment_method}</strong></div>
+            <div><span>Pagamento</span><strong>{formatPaymentMethod(subscription.payment_method)}</strong></div>
           </div>
 
           {isReadOnly ? (

@@ -15,6 +15,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Modal de detalhes de assinatura refinado com identidade visual, resumo bento e ações com hierarquia mais clara.
 - Home do dashboard reorganizada em uma composição bento, com saldo âncora, métricas assimétricas e blocos de atenção com identidades visuais diferentes.
 - Hub **Mais** redesenhado como uma grade de tiles bento coloridos, com destaque para áreas Premium e suporte a mais itens sem cortar o conteúdo.
 - Resumos dos módulos ganharam superfícies próprias — lilás, azul, coral, rosa e verde — para diferenciar contexto e prioridade.
