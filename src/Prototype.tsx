@@ -2552,8 +2552,12 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
             <BellIcon aria-hidden="true" />
             {notifications.length > 0 && <span className="dashboard-notification-badge">{notifications.length > 9 ? "9+" : notifications.length}</span>}
           </button>
-          <button className="dashboard-icon-button" type="button" aria-label="Abrir perfil" onClick={() => setActiveTab("profile")}>
-            <PersonIcon aria-hidden="true" />
+          <button className="dashboard-icon-button dashboard-profile-button" type="button" aria-label="Abrir perfil" onClick={() => setActiveTab("profile")}>
+            {subscriptionState.profile?.avatar_url ? (
+              <img src={subscriptionState.profile.avatar_url} alt="" draggable={false} />
+            ) : (
+              <PersonIcon aria-hidden="true" />
+            )}
           </button>
         </div>
       </header>

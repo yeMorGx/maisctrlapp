@@ -740,6 +740,19 @@
   border-radius: 12px;
 }
 
+.dashboard-profile-button {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dashboard-profile-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .dashboard-icon-button svg,
 .dashboard-circle-button svg {
   width: 17px;

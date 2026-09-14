@@ -357,6 +357,38 @@ test("profile photo upload uses the avatars bucket and saves the profile", async
   expect(uploadRequests[0]).toContain("/storage/v1/object/avatars/");
 });
 
+test("profile photo appears in the dashboard header beside notifications", async ({ page }) => {
+  await seedLocalSession(page);
+  const avatarUrl = "https://wdmkzljxjjjvzofrpeuk.supabase.co/storage/v1/object/public/avatars/local/avatar.png";
+  await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().url().includes("/profiles?")) {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          full_name: "Teste local",
+          email: "local-test@maisctrl.app",
+          phone_number: null,
+          avatar_url: avatarUrl,
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: "[]",
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  const profileButton = page.getByRole("button", { name: "Abrir perfil" });
+  await expect(profileButton).toHaveClass(/dashboard-profile-button/);
+  await expect(profileButton.locator("img")).toHaveAttribute("src", avatarUrl);
+});
+
 test("finance entries stay available locally after navigation", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({
