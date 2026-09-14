@@ -10,7 +10,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Corrigido
 
-- Rolagem vertical da tela inicial de autenticação no celular, inclusive ao iniciar o gesto sobre um botão, com fallback nativo para toque.
+- Rolagem vertical da tela inicial de autenticação no celular, inclusive ao iniciar o gesto sobre um botão, com fallback nativo para toque e sem barra visual sobre o conteúdo.
 
 ## 0.1.28 — 2026-09-10
 

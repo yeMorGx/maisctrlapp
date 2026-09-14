@@ -301,6 +301,10 @@
   z-index: 2;
 }
 
+.auth-scroll .mobile-scrollbar {
+  display: none;
+}
+
 .auth-scroll-content {
   display: flex;
   flex-direction: column;
