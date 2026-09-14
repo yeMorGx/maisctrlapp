@@ -62,6 +62,8 @@ jobs:
           fi
 
       - name: Build web assets
+        env:
+          VITE_APP_VERSION: 0.1.${{ github.run_number }}
         run: npm run build
 
       - name: Install Playwright browser
@@ -153,16 +155,23 @@ jobs:
       - name: Generate APK checksum
         run: sha256sum maisctrl.apk > maisctrl.apk.sha256
 
+      - name: Generate update manifest
+        run: node scripts/create-android-update-manifest.mjs
+
       - name: Publish APK download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
-          name: MaisCtrl Android — versão de teste
-          body: ${{ env.ANDROID_KEYSTORE_FILE != '' && 'APK Android assinado mais recente do MaisCtrl. O arquivo maisctrl.apk.sha256 permite conferir a integridade do download.' || 'APK de teste mais recente do MaisCtrl para Android. Configure a assinatura Android para liberar uma versão sem o alerta de instalação de teste. O arquivo maisctrl.apk.sha256 permite conferir a integridade do download.' }}
+          name: MaisCtrl Android 0.1.${{ github.run_number }} — versão de teste
+          body: |
+            Versão: 0.1.${{ github.run_number }}
+            Build: ${{ github.run_number }}
+            ${{ env.ANDROID_KEYSTORE_FILE != '' && 'APK Android assinado mais recente do MaisCtrl. O arquivo maisctrl.apk.sha256 permite conferir a integridade do download.' || 'APK de teste mais recente do MaisCtrl para Android. Configure a assinatura Android para liberar uma versão sem o alerta de instalação de teste. O arquivo maisctrl.apk.sha256 permite conferir a integridade do download.' }}
           prerelease: true
           make_latest: false
           files: |
             maisctrl.apk
             maisctrl.apk.sha256
+            android-update.json
           fail_on_unmatched_files: true
           overwrite_files: true

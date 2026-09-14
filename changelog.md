@@ -6,6 +6,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Adicionado
 
+- Aviso de nova versão dentro do app, com comparação automática da build instalada e download direto da APK Android.
 - Hub **Mais** no menu inferior, reunindo cartões, financiamentos, empréstimos, metas, tarefas, relatórios, Ctrl AI, +Couple, +Share e Premium.
 - Módulos locais para cartões e faturas, compromissos de crédito, metas, tarefas e assinaturas compartilhadas, com persistência no aparelho e suporte básico offline.
 - Relatório resumido com exportação CSV e área reservada para exportações Premium em Excel/PDF.
@@ -15,6 +16,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Campos de data dos módulos locais padronizados para `dd/mm/aaaa`, com calendário opcional e leitura consistente em pt-BR.
 - Superfícies do app agora usam cores sólidas, bordas e sombras para uma leitura mais limpa, sem gradientes decorativos.
 - Modal de detalhes de assinatura refinado com identidade visual, resumo bento e ações com hierarquia mais clara.
 - Home do dashboard reorganizada em uma composição bento, com saldo âncora, métricas assimétricas e blocos de atenção com identidades visuais diferentes.
@@ -34,6 +36,8 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Corrigido
 
+- Formulários locais revisados para manter contraste, foco visível, conteúdo acessível e teclado oculto ao fechar um modal.
+- Telas empilhadas inativas deixaram de aparecer para leitores de tela durante as transições.
 - Tela inicial de autenticação mantida fixa, sem rolagem ou deslocamento do card de ações.
 - Campos de login reposicionados automaticamente para permanecerem visíveis acima do teclado.
 - Tela de cadastro mantida estática, sem rolagem, com o formulário acima do teclado.

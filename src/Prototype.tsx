@@ -36,6 +36,156 @@ import { getAuthRedirectUrl } from "./lib/authRedirect";
 
 const backgroundAsset = "/assets/auth-panels.png";
 const logoAsset = "/assets/logo.svg";
+const androidReleaseApiUrl = "https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest";
+const fallbackAppVersion = import.meta.env.VITE_APP_VERSION || "0.1.53";
+
+type AppUpdateRelease = {
+  version: string;
+  build: number;
+  releasedAt: string;
+  downloadUrl: string;
+  changes: string[];
+};
+
+type AppUpdateState = {
+  status: "checking" | "current" | "available" | "offline" | "error";
+  installedVersion: string;
+  release: AppUpdateRelease | null;
+};
+
+function normalizeVersion(value: string) {
+  const match = value.match(/\d+(?:\.\d+){2}/);
+  return match ? match[0] : "";
+}
+
+function compareVersions(left: string, right: string) {
+  const leftParts = normalizeVersion(left).split(".").map(Number);
+  const rightParts = normalizeVersion(right).split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+async function getInstalledAppVersion() {
+  if (!Capacitor.isNativePlatform()) return fallbackAppVersion;
+  try {
+    const appInfo = await App.getInfo();
+    return normalizeVersion(appInfo.version) || fallbackAppVersion;
+  } catch {
+    return fallbackAppVersion;
+  }
+}
+
+function useAppUpdate() {
+  const [state, setState] = useState<AppUpdateState>({ status: "checking", installedVersion: fallbackAppVersion, release: null });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    const checkForUpdate = async () => {
+      const installedVersion = await getInstalledAppVersion();
+      if (!active) return;
+
+      if (Capacitor.getPlatform() === "ios") {
+        setState({ status: "current", installedVersion, release: null });
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setState({ status: "offline", installedVersion, release: null });
+        return;
+      }
+
+      try {
+        const response = await fetch(androidReleaseApiUrl, {
+          cache: "no-store",
+          headers: { Accept: "application/vnd.github+json" },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Release check failed with ${response.status}`);
+        const payload = await response.json() as {
+          name?: unknown;
+          body?: unknown;
+          published_at?: unknown;
+          assets?: Array<{ name?: unknown; browser_download_url?: unknown }>;
+        };
+        const apkAsset = payload.assets?.find((asset) => asset.name === "maisctrl.apk");
+        const manifestAsset = payload.assets?.find((asset) => asset.name === "android-update.json");
+        let manifest: { version?: unknown; releasedAt?: unknown; downloadUrl?: unknown; changes?: unknown } | null = null;
+        if (typeof manifestAsset?.browser_download_url === "string" && manifestAsset.browser_download_url.startsWith("https://")) {
+          try {
+            const manifestResponse = await fetch(manifestAsset.browser_download_url, { cache: "no-store", signal: controller.signal });
+            if (manifestResponse.ok) manifest = await manifestResponse.json();
+          } catch {
+            // The API metadata below remains enough to show the update when the asset is unavailable.
+          }
+        }
+        const version = normalizeVersion(String(manifest?.version ?? `${String(payload.name ?? "")} ${String(payload.body ?? "")}`));
+        const manifestDownloadUrl = typeof manifest?.downloadUrl === "string" && manifest.downloadUrl.startsWith("https://") ? manifest.downloadUrl : "";
+        const downloadUrl = manifestDownloadUrl || (typeof apkAsset?.browser_download_url === "string" && apkAsset.browser_download_url.startsWith("https://")
+          ? apkAsset.browser_download_url
+          : "");
+        if (!version || !downloadUrl) throw new Error("Release metadata is incomplete");
+
+        const manifestChanges = Array.isArray(manifest?.changes) ? manifest.changes.filter((change): change is string => typeof change === "string") : [];
+        const fallbackChanges = String(payload.body ?? "")
+          .split(/\r?\n/)
+          .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
+          .filter((line) => line && !/^versão:|^build:/i.test(line));
+
+        const release: AppUpdateRelease = {
+          version,
+          build: Number(version.split(".")[2]) || 0,
+          releasedAt: String(manifest?.releasedAt ?? payload.published_at ?? ""),
+          downloadUrl,
+          changes: (manifestChanges.length > 0 ? manifestChanges : fallbackChanges).slice(0, 2),
+        };
+
+        if (!active) return;
+        setState({
+          status: compareVersions(release.version, installedVersion) > 0 ? "available" : "current",
+          installedVersion,
+          release,
+        });
+      } catch (error) {
+        if (!active || controller.signal.aborted) return;
+        if (!(error instanceof Error && error.message === "Release metadata is incomplete")) {
+          console.warn("Não foi possível verificar atualizações do MaisCtrl.", error);
+        }
+        setState({ status: "error", installedVersion, release: null });
+      }
+    };
+
+    void checkForUpdate();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  return state;
+}
+
+function AppUpdateBanner({ release }: { release: AppUpdateRelease | null }) {
+  if (!release) return null;
+  const releaseSummary = release.changes[0] || "Correções e melhorias para deixar seu controle financeiro mais estável.";
+
+  return (
+    <section className="dashboard-update-banner" data-testid="app-update-banner" role="status">
+      <div className="dashboard-update-copy">
+        <span className="dashboard-eyebrow">Atualização disponível</span>
+        <strong>MaisCtrl {release.version}</strong>
+        <small>{releaseSummary}</small>
+      </div>
+      <a className="dashboard-update-action" href={release.downloadUrl} download="maisctrl.apk" aria-label={`Baixar MaisCtrl ${release.version}`}>
+        Baixar APK
+      </a>
+    </section>
+  );
+}
 
 function useNativeSystemBars(style: SystemBarsStyle) {
   useEffect(() => {
@@ -1603,13 +1753,19 @@ function nextRenewalDate(subscription: MobileSubscription) {
   return `${year}-${month}-${day}`;
 }
 
+function displayFirstName(value: string) {
+  const firstName = value.trim().split(/\s+/)[0];
+  if (!firstName) return "você";
+  return firstName.charAt(0).toLocaleUpperCase("pt-BR") + firstName.slice(1).toLocaleLowerCase("pt-BR");
+}
+
 function subscriptionDisplayName(user: { email?: string; user_metadata?: Record<string, unknown> } | null) {
   const fullName = user?.user_metadata?.full_name;
-  if (typeof fullName === "string" && fullName.trim()) return fullName.trim().split(/\s+/)[0];
+  if (typeof fullName === "string" && fullName.trim()) return displayFirstName(fullName);
 
   const emailName = user?.email?.split("@")[0]?.replace(/[._-]+/g, " ").trim();
   if (!emailName) return "você";
-  return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+  return displayFirstName(emailName);
 }
 
 async function fetchMobileSubscriptions(userId: string) {
@@ -1988,24 +2144,14 @@ function AddSubscriptionSheet({
               <span className="dashboard-eyebrow">Quando ela volta?</span>
               <strong>Defina as próximas datas</strong>
             </div>
-            <label className="mobile-field" htmlFor="subscription-renewal">
-              <span className="field-label">Próxima renovação</span>
-              <span className="input-shell">
-                <KeyboardInput id="subscription-renewal" type="date" value={renewalDate} onChange={(event) => {
-                  setRenewalDate(event.target.value);
-                  setError("");
-                }} />
-              </span>
-            </label>
-            <label className="mobile-field" htmlFor="subscription-trial-end">
-              <span className="field-label">Fim do teste <small>(opcional)</small></span>
-              <span className="input-shell">
-                <KeyboardInput id="subscription-trial-end" type="date" value={trialEndDate} onChange={(event) => {
-                  setTrialEndDate(event.target.value);
-                  setError("");
-                }} />
-              </span>
-            </label>
+            <MobileDateField id="subscription-renewal" label="Próxima renovação" value={renewalDate} onChange={(nextValue) => {
+              setRenewalDate(nextValue);
+              setError("");
+            }} />
+            <MobileDateField id="subscription-trial-end" label={<>Fim do teste <small>(opcional)</small></>} value={trialEndDate} onChange={(nextValue) => {
+              setTrialEndDate(nextValue);
+              setError("");
+            }} />
             <div className="subscription-flow-review" aria-label="Resumo da assinatura">
               <div><span>Serviço</span><strong>{name || "—"}</strong></div>
               <div><span>Valor</span><strong>{value ? `R$ ${value}` : "—"}</strong></div>
@@ -2243,19 +2389,9 @@ function SubscriptionActionSheet({
             </label>
           </div>
 
-          <label className="mobile-field" htmlFor="edit-subscription-renewal">
-            <span className="field-label">Próxima renovação</span>
-            <span className="input-shell">
-              <KeyboardInput id="edit-subscription-renewal" type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} />
-            </span>
-          </label>
+          <MobileDateField id="edit-subscription-renewal" label="Próxima renovação" value={renewalDate} onChange={setRenewalDate} />
 
-          <label className="mobile-field" htmlFor="edit-subscription-trial-end">
-            <span className="field-label">Fim do teste <small>(opcional)</small></span>
-            <span className="input-shell">
-              <KeyboardInput id="edit-subscription-trial-end" type="date" value={trialEndDate} onChange={(event) => setTrialEndDate(event.target.value)} />
-            </span>
-          </label>
+          <MobileDateField id="edit-subscription-trial-end" label={<>Fim do teste <small>(opcional)</small></>} value={trialEndDate} onChange={setTrialEndDate} />
 
           {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}
           <button className="dashboard-primary-button subscription-submit" type="submit" disabled={isSaving}>
@@ -2605,6 +2741,101 @@ function PremiumBadge() {
   return <span className="dashboard-premium-badge">Premium</span>;
 }
 
+function formatDateFieldValue(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function parseDateFieldValue(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length !== 8) return "";
+  const day = Number(digits.slice(0, 2));
+  const month = Number(digits.slice(2, 4));
+  const year = Number(digits.slice(4, 8));
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function formatDateFieldTyping(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function MobileDateField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const keyboard = useKeyboard();
+  const datePickerRef = useRef<HTMLInputElement | null>(null);
+  const [draft, setDraft] = useState(() => formatDateFieldValue(value));
+
+  useEffect(() => {
+    setDraft(formatDateFieldValue(value));
+  }, [value]);
+
+  const handleDraftChange = (nextValue: string) => {
+    const nextDraft = formatDateFieldTyping(nextValue);
+    setDraft(nextDraft);
+    if (!nextDraft) {
+      onChange("");
+      return;
+    }
+    const parsed = parseDateFieldValue(nextDraft);
+    if (parsed) onChange(parsed);
+  };
+
+  return (
+    <label className="mobile-field dashboard-tool-field" htmlFor={id}>
+      <span className="field-label">{label}</span>
+      <span className="input-shell date-input-shell">
+        <KeyboardInput
+          id={id}
+          type="text"
+          inputMode="numeric"
+          value={draft}
+          placeholder="dd/mm/aaaa"
+          autoComplete="off"
+          onChange={(event) => handleDraftChange(event.target.value)}
+        />
+        <button
+          className="date-picker-button"
+          type="button"
+          aria-label={`Abrir calendário para ${typeof label === "string" ? label : "esta data"}`}
+          onClick={() => {
+            keyboard.hide();
+            const nativeInput = datePickerRef.current;
+            if (!nativeInput) return;
+            if (nativeInput.showPicker) nativeInput.showPicker();
+            else nativeInput.focus();
+          }}
+        >
+          <CalendarIcon aria-hidden="true" />
+        </button>
+        <KeyboardInput
+          ref={datePickerRef}
+          className="date-picker-native"
+          type="date"
+          lang="pt-BR"
+          tabIndex={-1}
+          aria-hidden="true"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </span>
+    </label>
+  );
+}
+
 function LocalDataField({
   id,
   label,
@@ -2668,6 +2899,10 @@ function DashboardCards({ plan, onOpenPremium }: { plan: MobilePlan | null; onOp
   const [dueDay, setDueDay] = useState("17");
   const premium = isPremiumPlan(plan);
   const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const handleSheetChange = (nextOpen: boolean) => {
+    if (!nextOpen) keyboard.hide();
+    setIsSheetOpen(nextOpen);
+  };
   const saveCard = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || localNumber(limit) <= 0) { setMessage("Informe o nome e um limite válido."); return; }
@@ -2681,7 +2916,7 @@ function DashboardCards({ plan, onOpenPremium }: { plan: MobilePlan | null; onOp
     <button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Adicionar cartão</button>
     {!premium && cards.length >= 1 ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Tenha cartões ilimitados no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}
     <section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Visão rápida</span><h2>Seus cartões</h2></div><span className="dashboard-calendar-count">{cards.length}</span></div>{cards.length > 0 ? cards.map((card) => { const available = Math.max(0, card.limit - card.used); const usage = card.limit > 0 ? Math.min(100, (card.used / card.limit) * 100) : 0; return <div className="dashboard-tool-row" key={card.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{card.name}{card.last4 ? ` ···· ${card.last4}` : ""}</strong><small>Fecha dia {card.closingDay} · vence dia {card.dueDay}</small><span className="dashboard-progress-track"><span style={{ width: `${usage}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(available)}</strong><small>disponível</small><button type="button" className="dashboard-inline-delete" aria-label={`Excluir cartão ${card.name}`} onClick={() => removeItem(card.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Nenhum cartão cadastrado</strong><span>Comece com um cartão para acompanhar sua fatura.</span></div>}</section>
-    <BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Adicionar cartão" description="Os dados ficam neste aparelho nesta primeira versão." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={saveCard}><LocalDataField id="card-name" label="Nome do cartão" placeholder="Ex.: Nubank" value={name} onChange={setName} /><LocalDataField id="card-last4" label="Últimos 4 números" placeholder="0000" value={last4} onChange={setLast4} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="card-limit" label="Limite total" placeholder="5.000,00" value={limit} onChange={setLimit} inputMode="decimal" /><LocalDataField id="card-used" label="Fatura atual" placeholder="0,00" value={used} onChange={setUsed} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id="card-closing" label="Fecha dia" placeholder="10" value={closingDay} onChange={setClosingDay} inputMode="numeric" /><LocalDataField id="card-due" label="Vence dia" placeholder="17" value={dueDay} onChange={setDueDay} inputMode="numeric" /></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar cartão</button></form></BottomSheet>
+    <BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title="Adicionar cartão" description="Os dados ficam neste aparelho nesta primeira versão." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={saveCard}><LocalDataField id="card-name" label="Nome do cartão" placeholder="Ex.: Nubank" value={name} onChange={setName} /><LocalDataField id="card-last4" label="Últimos 4 números" placeholder="0000" value={last4} onChange={setLast4} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="card-limit" label="Limite total" placeholder="5.000,00" value={limit} onChange={setLimit} inputMode="decimal" /><LocalDataField id="card-used" label="Fatura atual" placeholder="0,00" value={used} onChange={setUsed} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id="card-closing" label="Fecha dia" placeholder="10" value={closingDay} onChange={setClosingDay} inputMode="numeric" /><LocalDataField id="card-due" label="Vence dia" placeholder="17" value={dueDay} onChange={setDueDay} inputMode="numeric" /></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar cartão</button></form></BottomSheet>
   </>;
 }
 
@@ -2699,6 +2934,10 @@ function DashboardCredit({ mode, plan, onOpenPremium }: { mode: "financings" | "
   const visibleItems = items.filter((item) => mode === "financings" ? item.kind === "financing" : item.kind !== "financing");
   const totalOpen = visibleItems.reduce((sum, item) => sum + Math.max(0, item.total - item.paid), 0);
   const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const handleSheetChange = (nextOpen: boolean) => {
+    if (!nextOpen) keyboard.hide();
+    setIsSheetOpen(nextOpen);
+  };
   const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(total) <= 0) { setMessage("Informe uma descrição e um valor total válido."); return; } addItem({ title: title.trim(), kind, total: localNumber(total), paid: Math.min(localNumber(paid), localNumber(total)), monthlyPayment: localNumber(monthlyPayment), dueDate }); setTitle(""); setTotal(""); setPaid(""); setMonthlyPayment(""); keyboard.hide(); setIsSheetOpen(false); };
   const registerPayment = (id: string) => setItems((current) => current.map((item) => item.id === id ? { ...item, paid: Math.min(item.total, item.paid + Math.max(item.monthlyPayment, 0)) } : item));
   return <>
@@ -2706,7 +2945,7 @@ function DashboardCredit({ mode, plan, onOpenPremium }: { mode: "financings" | "
     <button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Adicionar {mode === "financings" ? "financiamento" : "empréstimo"}</button>
     <section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Acompanhamento</span><h2>{mode === "financings" ? "Financiamentos" : "Empréstimos e dívidas"}</h2></div><span className="dashboard-calendar-count">{visibleItems.length}</span></div>{visibleItems.length > 0 ? visibleItems.map((item) => { const progress = item.total > 0 ? Math.min(100, (item.paid / item.total) * 100) : 0; return <div className="dashboard-tool-row" key={item.id}><span className="dashboard-tool-avatar"><CalendarIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{item.title}</strong><small>{item.kind === "debt" ? "Dívida" : item.kind === "loan" ? "Empréstimo" : "Financiamento"} · vence {formatShortDate(item.dueDate)}</small><span className="dashboard-progress-track"><span style={{ width: `${progress}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(Math.max(0, item.total - item.paid))}</strong><small>{Math.round(progress)}% pago</small><button type="button" className="dashboard-inline-action" onClick={() => registerPayment(item.id)} disabled={item.paid >= item.total}>Registrar parcela</button><button type="button" className="dashboard-inline-delete" aria-label={`Excluir ${item.title}`} onClick={() => removeItem(item.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Sem registros por enquanto</strong><span>Você poderá acompanhar valor pago e saldo restante.</span></div>}</section>
     {!isPremiumPlan(plan) ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Desbloqueie históricos e limites maiores no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}
-    <BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title={mode === "financings" ? "Adicionar financiamento" : "Adicionar empréstimo"} description="Acompanhe o saldo de forma simples." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id={`${mode}-title`} label="Descrição" placeholder={mode === "financings" ? "Ex.: Carro" : "Ex.: Empréstimo pessoal"} value={title} onChange={setTitle} /><label className="mobile-field dashboard-tool-field" htmlFor={`${mode}-kind`}><span className="field-label">Tipo</span><select id={`${mode}-kind`} value={kind} onChange={(event) => setKind(event.target.value as LocalDebtKind)}><option value="loan">Empréstimo</option><option value="debt">Dívida</option><option value="financing">Financiamento</option></select></label><div className="subscription-form-grid"><LocalDataField id={`${mode}-total`} label="Valor total" placeholder="10.000,00" value={total} onChange={setTotal} inputMode="decimal" /><LocalDataField id={`${mode}-paid`} label="Já pago" placeholder="0,00" value={paid} onChange={setPaid} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id={`${mode}-monthly`} label="Parcela" placeholder="500,00" value={monthlyPayment} onChange={setMonthlyPayment} inputMode="decimal" /><label className="mobile-field dashboard-tool-field" htmlFor={`${mode}-due`}><span className="field-label">Próximo vencimento</span><span className="input-shell"><KeyboardInput id={`${mode}-due`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></span></label></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar registro</button></form></BottomSheet>
+    <BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title={mode === "financings" ? "Adicionar financiamento" : "Adicionar empréstimo"} description="Acompanhe o saldo de forma simples." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id={`${mode}-title`} label="Descrição" placeholder={mode === "financings" ? "Ex.: Carro" : "Ex.: Empréstimo pessoal"} value={title} onChange={setTitle} /><label className="mobile-field dashboard-tool-field" htmlFor={`${mode}-kind`}><span className="field-label">Tipo</span><select id={`${mode}-kind`} value={kind} onChange={(event) => setKind(event.target.value as LocalDebtKind)}><option value="loan">Empréstimo</option><option value="debt">Dívida</option><option value="financing">Financiamento</option></select></label><div className="subscription-form-grid"><LocalDataField id={`${mode}-total`} label="Valor total" placeholder="10.000,00" value={total} onChange={setTotal} inputMode="decimal" /><LocalDataField id={`${mode}-paid`} label="Já pago" placeholder="0,00" value={paid} onChange={setPaid} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id={`${mode}-monthly`} label="Parcela" placeholder="500,00" value={monthlyPayment} onChange={setMonthlyPayment} inputMode="decimal" /><MobileDateField id={`${mode}-due`} label="Próximo vencimento" value={dueDate} onChange={setDueDate} /></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar registro</button></form></BottomSheet>
   </>;
 }
 
@@ -2715,21 +2954,22 @@ function DashboardGoals({ plan, onOpenPremium }: { plan: MobilePlan | null; onOp
   const { items: goals, addItem, removeItem } = useLocalGoals();
   const [isSheetOpen, setIsSheetOpen] = useState(false); const [message, setMessage] = useState(""); const [title, setTitle] = useState(""); const [target, setTarget] = useState(""); const [current, setCurrent] = useState(""); const [deadline, setDeadline] = useState("");
   const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); };
+  const handleSheetChange = (nextOpen: boolean) => { if (!nextOpen) keyboard.hide(); setIsSheetOpen(nextOpen); };
   const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(target) <= 0) { setMessage("Informe um nome e um valor de meta válido."); return; } addItem({ title: title.trim(), target: localNumber(target), current: Math.min(localNumber(current), localNumber(target)), deadline }); setTitle(""); setTarget(""); setCurrent(""); setDeadline(""); keyboard.hide(); setIsSheetOpen(false); };
-  return <><section className="dashboard-tool-summary" data-tone="violet"><div><span className="dashboard-eyebrow">Planos que importam</span><strong>{goals.length} {goals.length === 1 ? "meta" : "metas"}</strong></div><CheckCircledIcon aria-hidden="true" /><p>Transforme objetivos em passos visíveis, com prazo e progresso.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova meta</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Seus objetivos</span><h2>Metas e sonhos</h2></div><span className="dashboard-calendar-count">{goals.length}</span></div>{goals.length > 0 ? goals.map((goal) => { const progress = goal.target > 0 ? Math.min(100, (goal.current / goal.target) * 100) : 0; return <div className="dashboard-goal-card" key={goal.id}><div className="dashboard-goal-heading"><strong>{goal.title}</strong><span>{Math.round(progress)}%</span></div><div className="dashboard-progress-track"><span style={{ width: `${progress}%` }} /></div><div className="dashboard-goal-meta"><span>{formatCurrency(goal.current)} de {formatCurrency(goal.target)}</span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(goal.id)}>Excluir</button></div>{goal.deadline ? <small>Prazo: {formatAgendaDate(goal.deadline)}</small> : null}</div>; }) : <div className="dashboard-data-state"><strong>Nenhuma meta criada</strong><span>Uma reserva, uma viagem ou qualquer sonho começa aqui.</span></div>}</section>{!isPremiumPlan(plan) ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Crie metas ilimitadas e acompanhe relatórios no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}<BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Criar meta" description="Defina o que você quer alcançar." snap={0.68} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="goal-title" label="Nome da meta" placeholder="Ex.: Reserva de emergência" value={title} onChange={setTitle} /><div className="subscription-form-grid"><LocalDataField id="goal-target" label="Valor alvo" placeholder="20.000,00" value={target} onChange={setTarget} inputMode="decimal" /><LocalDataField id="goal-current" label="Já guardado" placeholder="0,00" value={current} onChange={setCurrent} inputMode="decimal" /></div><label className="mobile-field dashboard-tool-field" htmlFor="goal-deadline"><span className="field-label">Prazo (opcional)</span><span className="input-shell"><KeyboardInput id="goal-deadline" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></span></label>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar meta</button></form></BottomSheet></>;
+  return <><section className="dashboard-tool-summary" data-tone="violet"><div><span className="dashboard-eyebrow">Planos que importam</span><strong>{goals.length} {goals.length === 1 ? "meta" : "metas"}</strong></div><CheckCircledIcon aria-hidden="true" /><p>Transforme objetivos em passos visíveis, com prazo e progresso.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova meta</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Seus objetivos</span><h2>Metas e sonhos</h2></div><span className="dashboard-calendar-count">{goals.length}</span></div>{goals.length > 0 ? goals.map((goal) => { const progress = goal.target > 0 ? Math.min(100, (goal.current / goal.target) * 100) : 0; return <div className="dashboard-goal-card" key={goal.id}><div className="dashboard-goal-heading"><strong>{goal.title}</strong><span>{Math.round(progress)}%</span></div><div className="dashboard-progress-track"><span style={{ width: `${progress}%` }} /></div><div className="dashboard-goal-meta"><span>{formatCurrency(goal.current)} de {formatCurrency(goal.target)}</span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(goal.id)}>Excluir</button></div>{goal.deadline ? <small>Prazo: {formatAgendaDate(goal.deadline)}</small> : null}</div>; }) : <div className="dashboard-data-state"><strong>Nenhuma meta criada</strong><span>Uma reserva, uma viagem ou qualquer sonho começa aqui.</span></div>}</section>{!isPremiumPlan(plan) ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Crie metas ilimitadas e acompanhe relatórios no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}<BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title="Criar meta" description="Defina o que você quer alcançar." snap={0.68} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="goal-title" label="Nome da meta" placeholder="Ex.: Reserva de emergência" value={title} onChange={setTitle} /><div className="subscription-form-grid"><LocalDataField id="goal-target" label="Valor alvo" placeholder="20.000,00" value={target} onChange={setTarget} inputMode="decimal" /><LocalDataField id="goal-current" label="Já guardado" placeholder="0,00" value={current} onChange={setCurrent} inputMode="decimal" /></div><MobileDateField id="goal-deadline" label="Prazo (opcional)" value={deadline} onChange={setDeadline} />{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar meta</button></form></BottomSheet></>;
 }
 
 function DashboardTasks() {
   const keyboard = useKeyboard(); const { items: tasks, addItem, removeItem, setItems } = useLocalTasks(); const [isSheetOpen, setIsSheetOpen] = useState(false); const [title, setTitle] = useState(""); const [dueDate, setDueDate] = useState(""); const [message, setMessage] = useState("");
-  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }; const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim()) { setMessage("Informe o que precisa ser feito."); return; } addItem({ title: title.trim(), dueDate, done: false }); setTitle(""); setDueDate(""); keyboard.hide(); setIsSheetOpen(false); };
-  return <><section className="dashboard-tool-summary" data-tone="pink"><div><span className="dashboard-eyebrow">Próximos passos</span><strong>{tasks.filter((task) => !task.done).length} pendentes</strong></div><BellIcon aria-hidden="true" /><p>Crie lembretes para vencimentos, revisões e decisões financeiras.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova tarefa</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Organização</span><h2>Tarefas e lembretes</h2></div><span className="dashboard-calendar-count">{tasks.length}</span></div>{tasks.length > 0 ? tasks.map((task) => <div className="dashboard-task-row" key={task.id} data-done={task.done ? "true" : "false"}><button type="button" className="dashboard-task-check" aria-label={`${task.done ? "Reabrir" : "Concluir"} tarefa ${task.title}`} onClick={() => setItems((current) => current.map((entry) => entry.id === task.id ? { ...entry, done: !entry.done } : entry))}>{task.done ? <CheckCircledIcon aria-hidden="true" /> : <span />}</button><span className="dashboard-list-copy"><strong>{task.title}</strong><small>{task.dueDate ? `Até ${formatAgendaDate(task.dueDate)}` : "Sem prazo definido"}</small></span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(task.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma tarefa pendente</strong><span>Adicione um lembrete para cuidar do próximo passo.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Nova tarefa" description="Um lembrete simples para sua rotina." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="task-title" label="Tarefa" placeholder="Ex.: Conferir fatura" value={title} onChange={setTitle} /><label className="mobile-field dashboard-tool-field" htmlFor="task-due"><span className="field-label">Prazo (opcional)</span><span className="input-shell"><KeyboardInput id="task-due" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></span></label>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar tarefa</button></form></BottomSheet></>;
+  const openSheet = () => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }; const handleSheetChange = (nextOpen: boolean) => { if (!nextOpen) keyboard.hide(); setIsSheetOpen(nextOpen); }; const save = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim()) { setMessage("Informe o que precisa ser feito."); return; } addItem({ title: title.trim(), dueDate, done: false }); setTitle(""); setDueDate(""); keyboard.hide(); setIsSheetOpen(false); };
+  return <><section className="dashboard-tool-summary" data-tone="pink"><div><span className="dashboard-eyebrow">Próximos passos</span><strong>{tasks.filter((task) => !task.done).length} pendentes</strong></div><BellIcon aria-hidden="true" /><p>Crie lembretes para vencimentos, revisões e decisões financeiras.</p></section><button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Nova tarefa</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Organização</span><h2>Tarefas e lembretes</h2></div><span className="dashboard-calendar-count">{tasks.length}</span></div>{tasks.length > 0 ? tasks.map((task) => <div className="dashboard-task-row" key={task.id} data-done={task.done ? "true" : "false"}><button type="button" className="dashboard-task-check" aria-label={`${task.done ? "Reabrir" : "Concluir"} tarefa ${task.title}`} onClick={() => setItems((current) => current.map((entry) => entry.id === task.id ? { ...entry, done: !entry.done } : entry))}>{task.done ? <CheckCircledIcon aria-hidden="true" /> : <span />}</button><span className="dashboard-list-copy"><strong>{task.title}</strong><small>{task.dueDate ? `Até ${formatAgendaDate(task.dueDate)}` : "Sem prazo definido"}</small></span><button className="dashboard-inline-delete" type="button" onClick={() => removeItem(task.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma tarefa pendente</strong><span>Adicione um lembrete para cuidar do próximo passo.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title="Nova tarefa" description="Um lembrete simples para sua rotina." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={save}><LocalDataField id="task-title" label="Tarefa" placeholder="Ex.: Conferir fatura" value={title} onChange={setTitle} /><MobileDateField id="task-due" label="Prazo (opcional)" value={dueDate} onChange={setDueDate} />{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar tarefa</button></form></BottomSheet></>;
 }
 
-function downloadLocalFile(filename: string, content: string, type: string) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url); }
+function downloadLocalFile(filename: string, content: string, type: string) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; link.style.display = "none"; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
 function DashboardReports({ subscriptions, plan, onOpenPremium }: { subscriptions: MobileSubscription[]; plan: MobilePlan | null; onOpenPremium: () => void }) {
-  const { transactions } = useLocalFinance(); const income = transactions.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.value, 0); const expenses = transactions.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.value, 0); const recurring = subscriptions.reduce((sum, entry) => sum + monthlySubscriptionValue(entry), 0); const exportCsv = () => downloadLocalFile(`maisctrl-relatorio-${new Date().toISOString().slice(0, 10)}.csv`, ["indicador;valor", `entradas;${income.toFixed(2)}`, `saidas;${expenses.toFixed(2)}`, `assinaturas_mensais;${recurring.toFixed(2)}`, `saldo;${(income - expenses).toFixed(2)}`].join("\n"), "text/csv;charset=utf-8");
-  return <><section className="dashboard-tool-summary" data-tone="green"><div><span className="dashboard-eyebrow">Leitura do momento</span><strong>{formatCurrency(income - expenses)}</strong></div><BarChartIcon aria-hidden="true" /><p>Resumo criado com seus lançamentos locais e assinaturas sincronizadas.</p></section><div className="dashboard-report-grid"><div><span>Entradas</span><strong>{formatCurrency(income)}</strong></div><div><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div><div><span>Recorrentes</span><strong>{formatCurrency(recurring)}</strong></div><div><span>Assinaturas</span><strong>{subscriptions.length}</strong></div></div><section className="dashboard-list-card dashboard-report-actions"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Exportar</span><h2>Leve seus dados</h2></div><PremiumBadge /></div><button className="dashboard-secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button><button className="dashboard-secondary-button" type="button" onClick={onOpenPremium} disabled={!isPremiumPlan(plan)}>{isPremiumPlan(plan) ? "Exportar Excel / PDF" : "Excel e PDF no Premium"}</button><p>O CSV funciona offline. Os formatos avançados ficam disponíveis no plano Premium.</p></section></>;
+  const { transactions } = useLocalFinance(); const [exportFeedback, setExportFeedback] = useState(""); const income = transactions.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.value, 0); const expenses = transactions.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.value, 0); const recurring = subscriptions.reduce((sum, entry) => sum + monthlySubscriptionValue(entry), 0); const exportCsv = () => { downloadLocalFile(`maisctrl-relatorio-${new Date().toISOString().slice(0, 10)}.csv`, ["indicador;valor", `entradas;${income.toFixed(2)}`, `saidas;${expenses.toFixed(2)}`, `assinaturas_mensais;${recurring.toFixed(2)}`, `saldo;${(income - expenses).toFixed(2)}`].join("\n"), "text/csv;charset=utf-8"); setExportFeedback("CSV exportado. Confira a pasta de downloads."); };
+  return <><section className="dashboard-tool-summary" data-tone="green"><div><span className="dashboard-eyebrow">Leitura do momento</span><strong>{formatCurrency(income - expenses)}</strong></div><BarChartIcon aria-hidden="true" /><p>Resumo criado com seus lançamentos locais e assinaturas sincronizadas.</p></section><div className="dashboard-report-grid"><div><span>Entradas</span><strong>{formatCurrency(income)}</strong></div><div><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div><div><span>Recorrentes</span><strong>{formatCurrency(recurring)}</strong></div><div><span>Assinaturas</span><strong>{subscriptions.length}</strong></div></div><section className="dashboard-list-card dashboard-report-actions"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Exportar</span><h2>Leve seus dados</h2></div><PremiumBadge /></div><button className="dashboard-secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button>{exportFeedback ? <p className="dashboard-push-feedback" data-tone="success" role="status">{exportFeedback}</p> : null}<button className="dashboard-secondary-button" type="button" onClick={onOpenPremium} disabled={!isPremiumPlan(plan)}>{isPremiumPlan(plan) ? "Exportar Excel / PDF" : "Excel e PDF no Premium"}</button><p>O CSV funciona offline. Os formatos avançados ficam disponíveis no plano Premium.</p></section></>;
 }
 
 function DashboardAI({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
@@ -2740,8 +2980,9 @@ function DashboardAI({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenP
 
 function DashboardPremium({ plan }: { plan: MobilePlan | null }) {
   const keyboard = useKeyboard(); const [billing, setBilling] = useState<"monthly" | "annual">("annual"); const [isCardFormOpen, setIsCardFormOpen] = useState(false); const [message, setMessage] = useState(""); const [cardName, setCardName] = useState(""); const [cardNumber, setCardNumber] = useState(""); const [cardExpiry, setCardExpiry] = useState(""); const [cardCvv, setCardCvv] = useState(""); const active = isPremiumPlan(plan);
+  const handleCardFormChange = (nextOpen: boolean) => { if (!nextOpen) keyboard.hide(); setIsCardFormOpen(nextOpen); };
   const submitCard = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setMessage("A cobrança segura por cartão será ativada assim que o provedor de pagamentos estiver configurado para esta conta. Nenhum dado do cartão foi salvo."); keyboard.hide(); setIsCardFormOpen(false); };
-  return <><section className="premium-hero-card"><span className="dashboard-eyebrow">Mais espaço para você</span><h2>{active ? "Seu Premium está ativo." : "Organize tudo com Premium."}</h2><p>Metas, relatórios, Ctrl AI, múltiplos cartões e +Couple em um só lugar.</p><div className="premium-plan-switch" role="tablist" aria-label="Periodicidade do Premium"><button type="button" role="tab" aria-selected={billing === "monthly"} data-active={billing === "monthly"} onClick={() => setBilling("monthly")}>Mensal<br /><strong>R$ 19,90</strong></button><button type="button" role="tab" aria-selected={billing === "annual"} data-active={billing === "annual"} onClick={() => setBilling("annual")}>Anual <span>economize</span><br /><strong>R$ 14,90/mês</strong></button></div><small>7 dias grátis · cancele quando quiser</small></section><section className="dashboard-list-card premium-feature-card"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Incluído</span><h2>O que você desbloqueia</h2></div><PremiumBadge /></div>{["Cartões e contas ilimitados", "Relatórios em Excel e PDF", "Ctrl AI sem limite", "+Couple e +Share para compartilhar", "Open Finance quando disponível"].map((feature) => <div className="premium-feature-row" key={feature}><CheckCircledIcon aria-hidden="true" /><span>{feature}</span></div>)}</section>{!active ? <button className="dashboard-primary-button premium-cta" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsCardFormOpen(true); }}>Continuar com cartão</button> : <div className="dashboard-success-note" role="status">Plano atual: {formatPlan(plan)} · {formatPlanDetail(plan)}</div>}{message ? <p className="dashboard-push-feedback" data-tone="error" role="status">{message}</p> : null}<BottomSheet open={isCardFormOpen} onOpenChange={setIsCardFormOpen} title="Assinar Premium" description={`Plano ${billing === "annual" ? "anual" : "mensal"} · 7 dias grátis`} snap={0.72} scrollable={false}><form className="dashboard-tool-form" onSubmit={submitCard}><LocalDataField id="premium-card-name" label="Nome no cartão" placeholder="Nome completo" value={cardName} onChange={setCardName} /><LocalDataField id="premium-card-number" label="Número do cartão" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={setCardNumber} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="premium-card-expiry" label="Validade" placeholder="MM/AA" value={cardExpiry} onChange={setCardExpiry} /><LocalDataField id="premium-card-cvv" label="CVV" placeholder="000" value={cardCvv} onChange={setCardCvv} inputMode="numeric" /></div><p className="subscription-sheet-note">Por segurança, estes dados não são armazenados no app. A próxima etapa conecta o checkout oficial de cartão.</p><button className="dashboard-primary-button subscription-submit" type="submit">Continuar com segurança</button></form></BottomSheet></>;
+  return <><section className="premium-hero-card"><span className="dashboard-eyebrow">Mais espaço para você</span><h2>{active ? "Seu Premium está ativo." : "Organize tudo com Premium."}</h2><p>Metas, relatórios, Ctrl AI, múltiplos cartões e +Couple em um só lugar.</p><div className="premium-plan-switch" role="tablist" aria-label="Periodicidade do Premium"><button type="button" role="tab" aria-selected={billing === "monthly"} data-active={billing === "monthly"} onClick={() => setBilling("monthly")}>Mensal<br /><strong>R$ 19,90</strong></button><button type="button" role="tab" aria-selected={billing === "annual"} data-active={billing === "annual"} onClick={() => setBilling("annual")}>Anual <span>economize</span><br /><strong>R$ 14,90/mês</strong></button></div><small>7 dias grátis · cancele quando quiser</small></section><section className="dashboard-list-card premium-feature-card"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Incluído</span><h2>O que você desbloqueia</h2></div><PremiumBadge /></div>{["Cartões e contas ilimitados", "Relatórios em Excel e PDF", "Ctrl AI sem limite", "+Couple e +Share para compartilhar", "Open Finance quando disponível"].map((feature) => <div className="premium-feature-row" key={feature}><CheckCircledIcon aria-hidden="true" /><span>{feature}</span></div>)}</section>{!active ? <button className="dashboard-primary-button premium-cta" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsCardFormOpen(true); }}>Continuar com cartão</button> : <div className="dashboard-success-note" role="status">Plano atual: {formatPlan(plan)} · {formatPlanDetail(plan)}</div>}{message ? <p className="dashboard-push-feedback" data-tone="error" role="status">{message}</p> : null}<BottomSheet open={isCardFormOpen} onOpenChange={handleCardFormChange} title="Assinar Premium" description={`Plano ${billing === "annual" ? "anual" : "mensal"} · 7 dias grátis`} snap={0.72} scrollable={false}><form className="dashboard-tool-form" onSubmit={submitCard}><LocalDataField id="premium-card-name" label="Nome no cartão" placeholder="Nome completo" value={cardName} onChange={setCardName} /><LocalDataField id="premium-card-number" label="Número do cartão" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={setCardNumber} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="premium-card-expiry" label="Validade" placeholder="MM/AA" value={cardExpiry} onChange={setCardExpiry} /><LocalDataField id="premium-card-cvv" label="CVV" placeholder="000" value={cardCvv} onChange={setCardCvv} inputMode="numeric" /></div><p className="subscription-sheet-note">Por segurança, estes dados não são armazenados no app. A próxima etapa conecta o checkout oficial de cartão.</p><button className="dashboard-primary-button subscription-submit" type="submit">Continuar com segurança</button></form></BottomSheet></>;
 }
 
 function DashboardCouple({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
@@ -2751,9 +2992,10 @@ function DashboardCouple({ plan, onOpenPremium }: { plan: MobilePlan | null; onO
 
 function DashboardShare({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
   const keyboard = useKeyboard(); const { items, addItem, removeItem, setItems } = useLocalSharedItems(); const premium = isPremiumPlan(plan); const [title, setTitle] = useState(""); const [value, setValue] = useState(""); const [isSheetOpen, setIsSheetOpen] = useState(false); const [message, setMessage] = useState("");
+  const handleSheetChange = (nextOpen: boolean) => { if (!nextOpen) keyboard.hide(); setIsSheetOpen(nextOpen); };
   const addShared = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!title.trim() || localNumber(value) <= 0) { setMessage("Informe o nome e o valor da assinatura."); return; } addItem({ title: title.trim(), value: localNumber(value), split: "50/50", status: "pending" }); setTitle(""); setValue(""); keyboard.hide(); setIsSheetOpen(false); };
   if (!premium) return <><section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Divisão automática</span><strong>+Share</strong></div><CardStackIcon aria-hidden="true" /><p>Compartilhe uma assinatura e acompanhe quem já pagou.</p></section><button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>O +Share está disponível no plano Premium.</span><ChevronRightIcon aria-hidden="true" /></button></>;
-  return <><section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Assinaturas em conjunto</span><strong>{items.length} compartilhadas</strong></div><CardStackIcon aria-hidden="true" /><p>Divisão 50/50 e status de pagamento em um só lugar.</p></section><button className="dashboard-primary-button" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }}><PlusIcon aria-hidden="true" />Compartilhar assinatura</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">A dois</span><h2>+Share</h2></div><span className="dashboard-calendar-count">{items.length}</span></div>{items.length > 0 ? items.map((item) => <div className="dashboard-tool-row" key={item.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{item.title}</strong><small>{formatCurrency(item.value / 2)} para cada pessoa · {item.status === "paid" ? "pago" : "aguardando pagamento"}</small></span><button type="button" className="dashboard-inline-action" onClick={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: entry.status === "paid" ? "pending" : "paid" } : entry))}>{item.status === "paid" ? "Reabrir" : "Marcar pago"}</button><button type="button" className="dashboard-inline-delete" onClick={() => removeItem(item.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma assinatura compartilhada</strong><span>Adicione uma assinatura para dividir automaticamente.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} title="Compartilhar assinatura" description="A divisão padrão é 50% para cada pessoa." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={addShared}><LocalDataField id="share-title" label="Nome da assinatura" placeholder="Ex.: Streaming" value={title} onChange={setTitle} /><LocalDataField id="share-value" label="Valor mensal" placeholder="59,90" value={value} onChange={setValue} inputMode="decimal" /><p className="subscription-sheet-note">O outro participante receberá o status de pagamento quando o compartilhamento estiver conectado à conta.</p>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar compartilhamento</button></form></BottomSheet></>;
+  return <><section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Assinaturas em conjunto</span><strong>{items.length} compartilhadas</strong></div><CardStackIcon aria-hidden="true" /><p>Divisão 50/50 e status de pagamento em um só lugar.</p></section><button className="dashboard-primary-button" type="button" onClick={() => { keyboard.hide(); setMessage(""); setIsSheetOpen(true); }}><PlusIcon aria-hidden="true" />Compartilhar assinatura</button><section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">A dois</span><h2>+Share</h2></div><span className="dashboard-calendar-count">{items.length}</span></div>{items.length > 0 ? items.map((item) => <div className="dashboard-tool-row" key={item.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{item.title}</strong><small>{formatCurrency(item.value / 2)} para cada pessoa · {item.status === "paid" ? "pago" : "aguardando pagamento"}</small></span><button type="button" className="dashboard-inline-action" onClick={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: entry.status === "paid" ? "pending" : "paid" } : entry))}>{item.status === "paid" ? "Reabrir" : "Marcar pago"}</button><button type="button" className="dashboard-inline-delete" onClick={() => removeItem(item.id)}>Excluir</button></div>) : <div className="dashboard-data-state"><strong>Nenhuma assinatura compartilhada</strong><span>Adicione uma assinatura para dividir automaticamente.</span></div>}</section><BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title="Compartilhar assinatura" description="A divisão padrão é 50% para cada pessoa." snap={0.58} scrollable={false}><form className="dashboard-tool-form" onSubmit={addShared}><LocalDataField id="share-title" label="Nome da assinatura" placeholder="Ex.: Streaming" value={title} onChange={setTitle} /><LocalDataField id="share-value" label="Valor mensal" placeholder="59,90" value={value} onChange={setValue} inputMode="decimal" /><p className="subscription-sheet-note">O outro participante receberá o status de pagamento quando o compartilhamento estiver conectado à conta.</p>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar compartilhamento</button></form></BottomSheet></>;
 }
 
 const dashboardNavItems: Array<{ id: DashboardTab; label: string; icon: ReactNode }> = [
@@ -2769,6 +3011,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   const keyboard = useKeyboard();
   useNativeSystemBars(SystemBarsStyle.Light);
   const subscriptionState = useMobileSubscriptions();
+  const appUpdate = useAppUpdate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -2887,6 +3130,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
               Você está offline. Os lançamentos locais continuam disponíveis neste aparelho.
             </div>
           )}
+          {appUpdate.status === "available" && <AppUpdateBanner release={appUpdate.release} />}
           {accountError && <p className="auth-error dashboard-account-error" role="alert">{accountError}</p>}
           {activeTab === "overview" ? (
             <DashboardOverview
@@ -3516,12 +3760,7 @@ function LocalTransactionSheet({
               <KeyboardInput id="finance-category" value={category} placeholder="Geral" onChange={(event) => setCategory(event.target.value)} />
             </span>
           </label>
-          <label className="mobile-field" htmlFor="finance-date">
-            <span className="field-label">Data</span>
-            <span className="input-shell">
-              <KeyboardInput id="finance-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </span>
-          </label>
+          <MobileDateField id="finance-date" label="Data" value={date} onChange={setDate} />
         </div>
 
         {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}

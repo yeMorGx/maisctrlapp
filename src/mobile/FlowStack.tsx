@@ -216,6 +216,7 @@ export function FlowStack({ initial }: { initial: FlowScreen }) {
                     visibility: isVisible ? "visible" : "hidden",
                     zIndex: isTop ? 2 : 1,
                   }}
+                  aria-hidden={!isTop}
                 >
                   {entry.render(controls)}
                 </motion.div>

@@ -231,6 +231,33 @@ test("dashboard navigation uses a floating dock with a clear active tab", async 
   await expect(navigation.getByRole("button", { name: "Início", exact: true })).toHaveAttribute("data-active", "false");
 });
 
+test("shows a new Android build with a direct APK download", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "MaisCtrl Android 9.9.9 — versão de teste",
+      body: "Versão: 9.9.9\nBuild: 999",
+      published_at: "2026-09-14T12:00:00Z",
+      assets: [{ name: "maisctrl.apk", browser_download_url: "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk" }],
+    }),
+  }));
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  const update = page.getByTestId("app-update-banner");
+  await expect(update).toBeVisible({ timeout: 5_000 });
+  await expect(update).toContainText("MaisCtrl 9.9.9");
+  await expect(update.getByRole("link", { name: "Baixar MaisCtrl 9.9.9" })).toHaveAttribute("href", "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk");
+  await expect(update.getByRole("link")).toHaveAttribute("download", "maisctrl.apk");
+});
+
 test("known subscription names load their logo from the CDN", async ({ page }) => {
   await seedLocalSession(page);
   const logoUrl = "https://cdn.simpleicons.org/netflix";
