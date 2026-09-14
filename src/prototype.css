@@ -3912,3 +3912,236 @@ button.dashboard-list-item:focus-visible {
     padding: 9px;
   }
 }
+
+/* Credit cards: a physical-card metaphor makes the account details scannable
+   while the runtime Carousel keeps multiple cards swipeable on touch screens. */
+.payment-card-section {
+  margin-top: 20px;
+}
+
+.payment-card-section-heading {
+  align-items: end;
+  margin: 0 2px 10px;
+}
+
+.payment-card-section-heading h2 {
+  margin-top: 4px;
+}
+
+.payment-card-swipe-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 2px;
+  color: #8b8491;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.payment-card-swipe-hint svg {
+  width: 13px;
+  height: 13px;
+}
+
+.payment-card-carousel {
+  margin: 0 -1px;
+  padding: 1px 1px 5px;
+}
+
+.payment-card-carousel-track {
+  gap: 12px;
+}
+
+.payment-card {
+  display: grid;
+  flex: 0 0 min(86%, 302px);
+  gap: 8px;
+  min-width: 0;
+}
+
+.payment-card-face {
+  display: grid;
+  min-height: 178px;
+  gap: 14px;
+  padding: 16px 17px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 27px 15px 27px 15px;
+  background: #5c2d91;
+  color: #ffffff;
+  box-shadow: 0 10px 18px rgba(48, 35, 61, 0.17);
+}
+
+.payment-card[data-brand="inter"] .payment-card-face { background: #0759c9; }
+.payment-card[data-brand="itau"] .payment-card-face { background: #c9580d; }
+.payment-card[data-brand="bradesco"] .payment-card-face { background: #aa1f45; }
+.payment-card[data-brand="default"] .payment-card-face { background: #2f5968; }
+
+.payment-card-header,
+.payment-card-footer,
+.payment-card-brand,
+.payment-card-usage > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.payment-card-header {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.payment-card-header svg {
+  width: 19px;
+  height: 19px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.payment-card-brand {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.payment-card-brand > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.payment-card-brand strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-card-brand small,
+.payment-card-footer {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 9px;
+}
+
+.payment-card-face .dashboard-list-avatar {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.payment-card-face .dashboard-list-avatar img {
+  filter: brightness(0) invert(1);
+}
+
+.payment-card-number {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.payment-card-footer {
+  align-self: end;
+  justify-content: flex-start;
+  gap: 16px;
+  margin-top: -2px;
+}
+
+.payment-card-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e8e2eb;
+  border-radius: 17px 10px 17px 10px;
+  background: #ffffff;
+}
+
+.payment-card-details > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 9px;
+  border-left: 1px solid #eee9ef;
+}
+
+.payment-card-details > div:first-child {
+  border-left: 0;
+}
+
+.payment-card-details span {
+  overflow: hidden;
+  color: #8b8491;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-card-details strong {
+  overflow: hidden;
+  color: #27232a;
+  font-size: 11px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-card-usage {
+  display: grid;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.payment-card-usage > div {
+  color: #8b8491;
+  font-size: 9px;
+}
+
+.payment-card-usage > div strong {
+  color: #6750a4;
+  font-size: 9px;
+}
+
+.payment-card-usage-track {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ebe7ed;
+}
+
+.payment-card-usage-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #6750a4;
+}
+
+.payment-card-usage .dashboard-inline-delete {
+  justify-self: start;
+  font-size: 9px;
+}
+
+.payment-card-list {
+  margin-top: 16px;
+}
+
+@media (max-width: 360px) {
+  .payment-card {
+    flex-basis: 84%;
+  }
+
+  .payment-card-face {
+    min-height: 170px;
+    padding: 14px 15px 13px;
+  }
+}

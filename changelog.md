@@ -17,6 +17,8 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 ### Alterado
 
+- Tela de cartões ganhou representações visuais por instituição, com logo/nome, final do cartão, fechamento e vencimento.
+- Resumo de cada cartão agora exibe fatura, saldo disponível, limite e percentual usado; múltiplos cartões podem ser explorados por deslize horizontal.
 - Direção visual do dashboard aplicada com tokens inspirados no Material 3, superfícies tonais e estados de interação mais consistentes.
 - Resumo financeiro reorganizado em bento grid responsivo, com saldo em destaque e métricas agrupadas por contexto.
 - Telas de módulos, cartões, calendário, relatórios e menu Mais ganharam hierarquia de superfícies e cantos expressivos, sem gradientes.

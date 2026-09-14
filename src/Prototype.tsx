@@ -23,6 +23,7 @@ import {
 import {
   FlowStack,
   BottomSheet,
+  Carousel,
   KeyboardInput,
   MobileScroll,
   type FlowControls,
@@ -2988,6 +2989,69 @@ function DashboardMoreSheet({ open, onOpenChange, onSelect }: { open: boolean; o
   );
 }
 
+type PaymentCardBrand = "nubank" | "inter" | "itau" | "bradesco" | "default";
+
+function paymentCardBrand(name: string): PaymentCardBrand {
+  const normalizedName = normalizeSubscriptionName(name);
+  if (normalizedName.includes("nubank")) return "nubank";
+  if (normalizedName === "inter" || normalizedName.includes("banco inter")) return "inter";
+  if (normalizedName.includes("itau") || normalizedName.includes("itaú")) return "itau";
+  if (normalizedName.includes("bradesco")) return "bradesco";
+  return "default";
+}
+
+function PaymentCardVisual({ card, onRemove }: { card: LocalCard; onRemove: (id: string) => void }) {
+  const available = Math.max(0, card.limit - card.used);
+  const usage = card.limit > 0 ? Math.min(100, (card.used / card.limit) * 100) : 0;
+
+  return (
+    <article className="payment-card" data-brand={paymentCardBrand(card.name)} data-testid="payment-card">
+      <div className="payment-card-face">
+        <div className="payment-card-header">
+          <span>MaisCtrl crédito</span>
+          <CardStackIcon aria-hidden="true" />
+        </div>
+        <div className="payment-card-brand">
+          <SubscriptionAvatar name={card.name} tone="orange" loading="eager" />
+          <div>
+            <strong>{card.name}</strong>
+            <small>Cartão de crédito</small>
+          </div>
+        </div>
+        <strong className="payment-card-number">•••• {card.last4 || "0000"}</strong>
+        <div className="payment-card-footer">
+          <span>Fecha dia {card.closingDay}</span>
+          <span>Vence dia {card.dueDay}</span>
+        </div>
+      </div>
+      <div className="payment-card-details" aria-label={`Resumo do cartão ${card.name}`}>
+        <div>
+          <span>Fatura</span>
+          <strong>{formatCurrency(card.used)}</strong>
+        </div>
+        <div>
+          <span>Disponível</span>
+          <strong>{formatCurrency(available)}</strong>
+        </div>
+        <div>
+          <span>Limite</span>
+          <strong>{formatCurrency(card.limit)}</strong>
+        </div>
+      </div>
+      <div className="payment-card-usage">
+        <div>
+          <span>Limite usado</span>
+          <strong>{Math.round(usage)}%</strong>
+        </div>
+        <span className="payment-card-usage-track" aria-hidden="true">
+          <span style={{ width: `${usage}%` }} />
+        </span>
+        <button type="button" className="dashboard-inline-delete" aria-label={`Excluir cartão ${card.name}`} onClick={() => onRemove(card.id)}>Excluir cartão</button>
+      </div>
+    </article>
+  );
+}
+
 function DashboardCards({ plan, onOpenPremium }: { plan: MobilePlan | null; onOpenPremium: () => void }) {
   const keyboard = useKeyboard();
   const { items: cards, addItem, removeItem } = useLocalCards();
@@ -3014,10 +3078,11 @@ function DashboardCards({ plan, onOpenPremium }: { plan: MobilePlan | null; onOp
   };
 
   return <>
+    {cards.length > 0 ? <section className="payment-card-section" aria-labelledby="payment-card-section-title"><div className="dashboard-section-title-row payment-card-section-heading"><div><span className="dashboard-eyebrow">Visão do crédito</span><h2 id="payment-card-section-title">Seus cartões</h2></div>{cards.length > 1 ? <span className="payment-card-swipe-hint">Deslize <ChevronRightIcon aria-hidden="true" /></span> : null}</div><Carousel ariaLabel="Seus cartões em destaque" className="payment-card-carousel" contentClassName="payment-card-carousel-track">{cards.map((card) => <PaymentCardVisual key={card.id} card={card} onRemove={removeItem} />)}</Carousel></section> : null}
     <section className="dashboard-tool-summary" data-tone="blue"><div><span className="dashboard-eyebrow">Crédito organizado</span><strong>{cards.length} {cards.length === 1 ? "cartão" : "cartões"}</strong></div><CardStackIcon aria-hidden="true" /><p>{cards.length === 0 ? "Cadastre um cartão para acompanhar limite e fatura." : "A fatura fica visível junto com as próximas contas."}</p></section>
     <button className="dashboard-primary-button" type="button" onClick={openSheet}><PlusIcon aria-hidden="true" />Adicionar cartão</button>
     {!premium && cards.length >= 1 ? <button className="dashboard-upgrade-banner" type="button" onClick={onOpenPremium}><PremiumBadge /><span>Tenha cartões ilimitados no Premium.</span><ChevronRightIcon aria-hidden="true" /></button> : null}
-    <section className="dashboard-list-card dashboard-tool-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Visão rápida</span><h2>Seus cartões</h2></div><span className="dashboard-calendar-count">{cards.length}</span></div>{cards.length > 0 ? cards.map((card) => { const available = Math.max(0, card.limit - card.used); const usage = card.limit > 0 ? Math.min(100, (card.used / card.limit) * 100) : 0; return <div className="dashboard-tool-row" key={card.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{card.name}{card.last4 ? ` ···· ${card.last4}` : ""}</strong><small>Fecha dia {card.closingDay} · vence dia {card.dueDay}</small><span className="dashboard-progress-track"><span style={{ width: `${usage}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(available)}</strong><small>disponível</small><button type="button" className="dashboard-inline-delete" aria-label={`Excluir cartão ${card.name}`} onClick={() => removeItem(card.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Nenhum cartão cadastrado</strong><span>Comece com um cartão para acompanhar sua fatura.</span></div>}</section>
+    <section className="dashboard-list-card dashboard-tool-list payment-card-list"><div className="dashboard-section-title-row"><div><span className="dashboard-eyebrow">Detalhes e ações</span><h2>{cards.length > 0 ? "Todos os cartões" : "Seus cartões"}</h2></div><span className="dashboard-calendar-count">{cards.length}</span></div>{cards.length > 0 ? cards.map((card) => { const available = Math.max(0, card.limit - card.used); const usage = card.limit > 0 ? Math.min(100, (card.used / card.limit) * 100) : 0; return <div className="dashboard-tool-row" key={card.id}><span className="dashboard-tool-avatar"><CardStackIcon aria-hidden="true" /></span><span className="dashboard-list-copy"><strong>{card.name}{card.last4 ? ` ···· ${card.last4}` : ""}</strong><small>Fecha dia {card.closingDay} · vence dia {card.dueDay}</small><span className="dashboard-progress-track"><span style={{ width: `${usage}%` }} /></span></span><span className="dashboard-tool-row-side"><strong>{formatCurrency(available)}</strong><small>disponível</small><button type="button" className="dashboard-inline-delete" aria-label={`Excluir cartão ${card.name}`} onClick={() => removeItem(card.id)}>Excluir</button></span></div>; }) : <div className="dashboard-data-state"><strong>Nenhum cartão cadastrado</strong><span>Comece com um cartão para acompanhar sua fatura.</span></div>}</section>
     <BottomSheet open={isSheetOpen} onOpenChange={handleSheetChange} title="Adicionar cartão" description="Os dados ficam neste aparelho nesta primeira versão." snap={0.76} scrollable={false}><form className="dashboard-tool-form" onSubmit={saveCard}><LocalDataField id="card-name" label="Nome do cartão" placeholder="Ex.: Nubank" value={name} onChange={setName} /><LocalDataField id="card-last4" label="Últimos 4 números" placeholder="0000" value={last4} onChange={setLast4} inputMode="numeric" /><div className="subscription-form-grid"><LocalDataField id="card-limit" label="Limite total" placeholder="5.000,00" value={limit} onChange={setLimit} inputMode="decimal" /><LocalDataField id="card-used" label="Fatura atual" placeholder="0,00" value={used} onChange={setUsed} inputMode="decimal" /></div><div className="subscription-form-grid"><LocalDataField id="card-closing" label="Fecha dia" placeholder="10" value={closingDay} onChange={setClosingDay} inputMode="numeric" /><LocalDataField id="card-due" label="Vence dia" placeholder="17" value={dueDay} onChange={setDueDay} inputMode="numeric" /></div>{message ? <p className="auth-error subscription-form-error" role="alert">{message}</p> : null}<button className="dashboard-primary-button subscription-submit" type="submit">Salvar cartão</button></form></BottomSheet>
   </>;
 }
@@ -3633,7 +3698,7 @@ function subscriptionLogoUrl(name: string) {
   return domain ? `https://icons.duckduckgo.com/ip3/${domain}.ico` : null;
 }
 
-function SubscriptionAvatar({ name, tone }: { name: string; tone: "red" | "green" | "orange" }) {
+function SubscriptionAvatar({ name, tone, loading = "lazy" }: { name: string; tone: "red" | "green" | "orange"; loading?: "lazy" | "eager" }) {
   const [logoFailed, setLogoFailed] = useState(false);
   const logoUrl = subscriptionLogoUrl(name);
   const showLogo = Boolean(logoUrl) && !logoFailed;
@@ -3644,7 +3709,7 @@ function SubscriptionAvatar({ name, tone }: { name: string; tone: "red" | "green
         <img
           src={logoUrl ?? undefined}
           alt=""
-          loading="lazy"
+          loading={loading}
           decoding="async"
           draggable={false}
           onError={() => setLogoFailed(true)}

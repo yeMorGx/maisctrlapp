@@ -231,6 +231,53 @@ test("dashboard navigation uses a floating dock with a clear active tab", async 
   await expect(navigation.getByRole("button", { name: "Início", exact: true })).toHaveAttribute("data-active", "false");
 });
 
+test("cards show a branded visual summary and swipe horizontally when there is more than one", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("maisctrl-local-cards-v1", JSON.stringify([
+      { id: "card-nubank", name: "Nubank", last4: "0000", limit: 2500, used: 588, closingDay: 10, dueDay: 17 },
+      { id: "card-inter", name: "Banco Inter", last4: "1234", limit: 4800, used: 920, closingDay: 12, dueDay: 19 },
+    ]));
+  });
+  await page.route("https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "MaisCtrl Android 0.1.53", body: "Versão: 0.1.53", published_at: "2026-09-14T12:00:00Z", assets: [{ name: "maisctrl.apk", browser_download_url: "https://github.com/yeMorGx/maisctrlapp/releases/download/android-latest/maisctrl.apk" }] }),
+  }));
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+
+  await page.getByRole("button", { name: "Mais", exact: true }).click();
+  await page.getByRole("button", { name: /Cartões e faturas/ }).click();
+  await expect(page.getByRole("heading", { name: "Seus cartões", exact: true })).toBeVisible();
+
+  const cards = page.getByTestId("payment-card");
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText("Nubank");
+  await expect(cards.nth(0)).toContainText("Fatura");
+  await expect(cards.nth(0)).toContainText("Disponível");
+  await expect(cards.nth(0)).toContainText("Limite");
+
+  const carousel = page.locator(".payment-card-carousel");
+  const scrollMetrics = await carousel.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    contentClass: element.firstElementChild?.className,
+  }));
+  expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
+  expect(scrollMetrics.contentClass).toContain("payment-card-carousel-track");
+  await carousel.evaluate((element) => {
+    const scroll = element as HTMLElement;
+    scroll.scrollLeft = scroll.scrollWidth - scroll.clientWidth;
+  });
+  await expect.poll(() => carousel.evaluate((element) => (element as HTMLElement).scrollLeft)).toBeGreaterThan(0);
+});
+
 test("shows a new Android build with a direct APK download", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("https://api.github.com/repos/yeMorGx/maisctrlapp/releases/tags/android-latest", (route) => route.fulfill({
