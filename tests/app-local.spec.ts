@@ -78,6 +78,36 @@ test("signup logo stays fixed while the form scrolls underneath", async ({ page 
   expect(Math.abs(after.y - before.y)).toBeLessThan(1);
 });
 
+test("login keeps the focused fields above the simulated keyboard", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Ainda não!" }).click();
+  await page.getByRole("button", { name: "Entrar" }).last().click();
+
+  const scroll = page.locator("[data-testid='login-screen'] .mobile-scroll");
+  const email = page.getByLabel("E-mail");
+  await email.fill("local@maisctrl.app");
+
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    return email.evaluate((element) => {
+      const field = element.getBoundingClientRect();
+      const viewport = element.closest(".mobile-scroll")?.getBoundingClientRect();
+      return viewport ? viewport.bottom - field.bottom : -Infinity;
+    });
+  }).toBeGreaterThanOrEqual(0);
+
+  const password = page.locator("#login-password");
+  await password.focus();
+  await expect.poll(async () => {
+    return password.evaluate((element) => {
+      const field = element.getBoundingClientRect();
+      const viewport = element.closest(".mobile-scroll")?.getBoundingClientRect();
+      return viewport ? viewport.bottom - field.bottom : -Infinity;
+    });
+  }).toBeGreaterThanOrEqual(0);
+});
+
 test("welcome page stays fixed without a scroll container", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("welcome-screen")).toBeVisible({ timeout: 5_000 });

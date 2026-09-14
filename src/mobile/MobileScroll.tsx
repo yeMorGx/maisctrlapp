@@ -48,7 +48,7 @@ type DragSession = {
 };
 
 export function MobileScroll({ className, bottomSpacer = 0, children }: MobileScrollProps) {
-  const { isKeyboardVisible, keyboardHeight, keyboardDragging } = useKeyboardInsets();
+  const { isKeyboardVisible, keyboardHeight, keyboardDragging, focusedElement } = useKeyboardInsets();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
@@ -236,6 +236,58 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
   useEffect(() => {
     updateThumb(false);
   }, [keyboardHeight, updateThumb]);
+
+  const keepFocusedElementVisible = useCallback(() => {
+    const scroll = scrollRef.current;
+    const focused = focusedElement;
+    if (!scroll || !focused || !scroll.contains(focused)) return;
+
+    const scrollRect = scroll.getBoundingClientRect();
+    const focusedRect = focused.getBoundingClientRect();
+    const visualMargin = 18;
+    const visibleTop = scrollRect.top + visualMargin;
+    const visibleBottom = scrollRect.bottom - visualMargin;
+    const visualOverflow =
+      focusedRect.bottom > visibleBottom
+        ? focusedRect.bottom - visibleBottom
+        : focusedRect.top < visibleTop
+          ? focusedRect.top - visibleTop
+          : 0;
+
+    if (Math.abs(visualOverflow) < 0.5) return;
+
+    // The phone preview can be rendered with a scale transform. Convert the
+    // visual distance back to the scroll element's coordinate system before
+    // changing scrollTop, otherwise the field would remain partly covered.
+    const scaleY = Math.max(0.01, scrollRect.height / Math.max(1, scroll.clientHeight));
+    const nextScrollTop = Math.max(
+      0,
+      Math.min(maxScrollTop(scroll), scroll.scrollTop + visualOverflow / scaleY),
+    );
+
+    if (Math.abs(nextScrollTop - scroll.scrollTop) < 0.5) return;
+    scroll.scrollTop = nextScrollTop;
+    updateThumb(true);
+  }, [focusedElement, maxScrollTop, updateThumb]);
+
+  useEffect(() => {
+    if (!isKeyboardVisible || keyboardDragging || !focusedElement) return;
+
+    let firstFrame: number | null = null;
+    let secondFrame: number | null = null;
+    const settleTimer = window.setTimeout(keepFocusedElementVisible, 300);
+
+    firstFrame = window.requestAnimationFrame(() => {
+      keepFocusedElementVisible();
+      secondFrame = window.requestAnimationFrame(keepFocusedElementVisible);
+    });
+
+    return () => {
+      if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(settleTimer);
+    };
+  }, [focusedElement, isKeyboardVisible, keyboardDragging, keyboardHeight, keepFocusedElementVisible]);
 
   const startMomentum = useCallback((scroll: HTMLDivElement, initialVelocity: number) => {
     let velocity = initialVelocity;

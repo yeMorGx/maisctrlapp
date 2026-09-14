@@ -95,6 +95,7 @@ export function useKeyboardInsets() {
     keyboardHeight: keyboard.height,
     keyboardFullHeight: keyboard.fullHeight,
     keyboardDragging: keyboard.isDragging,
+    focusedElement: keyboard.focusedElement,
     bottomInset: reservesAndroidNavigation
       ? 0
       : device.platform === "android"
