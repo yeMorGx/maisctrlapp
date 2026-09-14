@@ -56,9 +56,14 @@ test("signup logo stays fixed while the form scrolls underneath", async ({ page 
   await page.waitForTimeout(250);
 
   const scroll = page.locator(".auth-screen-signup .mobile-scroll");
-  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(200);
-
+  const name = page.locator("#signup-name");
   const logo = page.locator(".signup-brand-mark");
+  await expect.poll(() => scroll.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(200);
+  await expect.poll(async () => {
+    const [nameBox, logoBox] = await Promise.all([name.boundingBox(), logo.boundingBox()]);
+    return nameBox && logoBox ? nameBox.y - (logoBox.y + logoBox.height) : -Infinity;
+  }).toBeGreaterThanOrEqual(0);
+
   const before = await logo.boundingBox();
   if (!before) throw new Error("Signup logo has no bounding box");
 

@@ -13,6 +13,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Tela inicial de autenticação mantida fixa, sem rolagem ou deslocamento do card de ações.
 - Logo da tela de cadastro mantida fixa sem bloquear a rolagem do formulário quando o teclado está aberto.
 - Campos de login reposicionados automaticamente para permanecerem visíveis acima do teclado.
+- Formulário de cadastro reposicionado sem atravessar a área da logo fixa ao abrir o teclado.
 
 ## 0.1.28 — 2026-09-10
 

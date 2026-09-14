@@ -245,7 +245,9 @@ export function MobileScroll({ className, bottomSpacer = 0, children }: MobileSc
     const scrollRect = scroll.getBoundingClientRect();
     const focusedRect = focused.getBoundingClientRect();
     const visualMargin = 18;
-    const visibleTop = scrollRect.top + visualMargin;
+    const fixedBrand = scroll.closest(".auth-screen-signup")?.querySelector(".signup-brand-mark");
+    const fixedBrandBottom = fixedBrand?.getBoundingClientRect().bottom ?? Number.NEGATIVE_INFINITY;
+    const visibleTop = Math.max(scrollRect.top + visualMargin, fixedBrandBottom + visualMargin);
     const visibleBottom = scrollRect.bottom - visualMargin;
     const visualOverflow =
       focusedRect.bottom > visibleBottom
