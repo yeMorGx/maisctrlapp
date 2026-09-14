@@ -357,7 +357,7 @@ button {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   transition: bottom 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
