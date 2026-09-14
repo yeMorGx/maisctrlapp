@@ -10,6 +10,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Logo decorativa removida da tela de cadastro para deixar o formulário livre acima do teclado.
 - Badge da logo MaisCtrl no painel pessoal transformado em entrada para o espaço +2.
 - Nova tela fixa do +2 criada com identidade visual própria e retorno direto para o painel pessoal.
+- Cadastro de assinaturas reorganizado em um fluxo modal de três etapas, com revisão antes de salvar.
 
 ### Corrigido
 

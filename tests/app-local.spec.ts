@@ -255,6 +255,54 @@ test("subscription form leaves a gap above the keyboard without scrolling", asyn
   expect(sheetScrollTop).toBe(0);
 });
 
+test("adding a subscription uses a fixed three-step modal flow", async ({ page }) => {
+  await seedLocalSession(page);
+  const insertRequests: string[] = [];
+  await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().method() === "POST" && route.request().url().includes("/subscriptions")) {
+      insertRequests.push(route.request().postData() ?? "");
+      await route.fulfill({
+        status: 201,
+        headers: { "content-type": "application/json" },
+        body: "[]",
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: "[]",
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+
+  await page.getByRole("button", { name: "Assinaturas", exact: true }).click();
+  await page.getByRole("button", { name: "Nova assinatura" }).click();
+  const flow = page.getByTestId("subscription-add-flow");
+  const progress = flow.locator(".subscription-flow-progress");
+  await expect(flow).toBeVisible();
+  await expect(progress).toHaveAttribute("aria-label", "Etapa 1 de 3");
+
+  await page.locator("#subscription-name").fill("Netflix");
+  await page.locator("#subscription-value").fill("29,90");
+  await page.getByRole("button", { name: "Próximo" }).click();
+  await expect(progress).toHaveAttribute("aria-label", "Etapa 2 de 3");
+
+  await page.locator("#subscription-frequency").selectOption("monthly");
+  await page.locator("#subscription-payment").selectOption("credit");
+  await page.getByRole("button", { name: "Próximo" }).click();
+  await expect(progress).toHaveAttribute("aria-label", "Etapa 3 de 3");
+  await expect(flow).toContainText("Netflix");
+  await expect(flow).toContainText("R$ 29,90");
+
+  await page.getByRole("button", { name: "Cadastrar assinatura" }).click();
+  await expect(page.getByTestId("bottom-sheet")).toHaveCount(0, { timeout: 2_000 });
+  expect(insertRequests).toHaveLength(1);
+  expect(insertRequests[0]).toContain("Netflix");
+});
+
 test("profile photo upload uses the avatars bucket and saves the profile", async ({ page }) => {
   await seedLocalSession(page);
   const uploadRequests: string[] = [];

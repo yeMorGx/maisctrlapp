@@ -1638,6 +1638,8 @@ function useMobileSubscriptions() {
   };
 }
 
+type SubscriptionStep = 1 | 2 | 3;
+
 function AddSubscriptionSheet({
   open,
   onOpenChange,
@@ -1648,6 +1650,7 @@ function AddSubscriptionSheet({
   onCreated: () => void;
 }) {
   const keyboard = useKeyboard();
+  const [step, setStep] = useState<SubscriptionStep>(1);
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [frequency, setFrequency] = useState("monthly");
@@ -1658,6 +1661,7 @@ function AddSubscriptionSheet({
   const [error, setError] = useState("");
 
   const reset = () => {
+    setStep(1);
     setName("");
     setValue("");
     setFrequency("monthly");
@@ -1665,6 +1669,7 @@ function AddSubscriptionSheet({
     setRenewalDate(new Date().toISOString().slice(0, 10));
     setTrialEndDate("");
     setError("");
+    setIsSaving(false);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -1675,8 +1680,44 @@ function AddSubscriptionSheet({
     onOpenChange(nextOpen);
   };
 
+  const validateStep = () => {
+    if (step === 1) {
+      const parsedValue = Number(value.replace(",", "."));
+      if (!name.trim() || !Number.isFinite(parsedValue) || parsedValue <= 0) {
+        setError("Informe o nome e um valor válido para continuar.");
+        return false;
+      }
+    }
+
+    if (step === 3 && !renewalDate) {
+      setError("Informe a próxima renovação para continuar.");
+      return false;
+    }
+
+    setError("");
+    return true;
+  };
+
+  const goBack = () => {
+    keyboard.hide();
+    setError("");
+    if (step === 1) {
+      handleOpenChange(false);
+      return;
+    }
+    setStep((current) => (current - 1) as SubscriptionStep);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (step < 3) {
+      if (!validateStep()) return;
+      keyboard.hide();
+      setStep((current) => (current + 1) as SubscriptionStep);
+      return;
+    }
+
     keyboard.hide();
     setError("");
 
@@ -1726,100 +1767,137 @@ function AddSubscriptionSheet({
       open={open}
       onOpenChange={handleOpenChange}
       title="Nova assinatura"
-      description="Cadastre uma cobrança para acompanhar seus próximos pagamentos."
+      description={step === 1 ? "Comece pelo serviço e pelo valor." : step === 2 ? "Escolha como essa cobrança acontece." : "Confira os dados antes de salvar."}
       snap={0.72}
       scrollable={false}
     >
-      <form className="subscription-form" onSubmit={submit}>
-        <label className="mobile-field" htmlFor="subscription-name">
-          <span className="field-label">Nome</span>
-          <span className="input-shell">
-            <KeyboardInput
-              id="subscription-name"
-              value={name}
-              placeholder="Ex.: Netflix"
-              autoCapitalize="sentences"
-              autoCorrect="off"
-              onChange={(event) => {
-                setName(event.target.value);
-                setError("");
-              }}
-            />
-          </span>
-        </label>
-
-        <label className="mobile-field" htmlFor="subscription-value">
-          <span className="field-label">Valor por cobrança</span>
-          <span className="input-shell">
-            <span className="input-prefix">R$</span>
-            <KeyboardInput
-              id="subscription-value"
-              type="text"
-              inputMode="decimal"
-              value={value}
-              placeholder="29,90"
-              onChange={(event) => {
-                setValue(event.target.value);
-                setError("");
-              }}
-            />
-          </span>
-        </label>
-
-        <div className="subscription-form-grid">
-          <label className="mobile-field" htmlFor="subscription-frequency">
-            <span className="field-label">Frequência</span>
-            <select id="subscription-frequency" value={frequency} onChange={(event) => {
-              setFrequency(event.target.value);
-              setError("");
-            }}>
-              <option value="daily">Diária</option>
-              <option value="weekly">Semanal</option>
-              <option value="monthly">Mensal</option>
-              <option value="quarterly">Trimestral</option>
-              <option value="annual">Anual</option>
-            </select>
-          </label>
-
-          <label className="mobile-field" htmlFor="subscription-payment">
-            <span className="field-label">Pagamento</span>
-            <select id="subscription-payment" value={paymentMethod} onChange={(event) => {
-              setPaymentMethod(event.target.value);
-              setError("");
-            }}>
-              <option value="credit">Crédito</option>
-              <option value="debit">Débito</option>
-              <option value="pix">PIX</option>
-              <option value="boleto">Boleto</option>
-            </select>
-          </label>
+      <form className="subscription-form subscription-add-form" data-testid="subscription-add-flow" onSubmit={submit}>
+        <div className="subscription-flow-progress" aria-label={`Etapa ${step} de 3`}>
+          <div className="subscription-flow-progress-bars" aria-hidden="true">
+            {[1, 2, 3].map((item) => <span key={item} data-active={item <= step ? "true" : "false"} />)}
+          </div>
+          <div className="subscription-flow-progress-copy">
+            <span>Nova assinatura</span>
+            <strong>Etapa {step} de 3</strong>
+          </div>
         </div>
 
-        <label className="mobile-field" htmlFor="subscription-renewal">
-          <span className="field-label">Próxima renovação</span>
-          <span className="input-shell">
-            <KeyboardInput id="subscription-renewal" type="date" value={renewalDate} onChange={(event) => {
-              setRenewalDate(event.target.value);
-              setError("");
-            }} />
-          </span>
-        </label>
-
-        <label className="mobile-field" htmlFor="subscription-trial-end">
-          <span className="field-label">Fim do teste <small>(opcional)</small></span>
-          <span className="input-shell">
-            <KeyboardInput id="subscription-trial-end" type="date" value={trialEndDate} onChange={(event) => {
-              setTrialEndDate(event.target.value);
-              setError("");
-            }} />
-          </span>
-        </label>
+        {step === 1 ? (
+          <div className="subscription-flow-step" data-step="1">
+            <div className="subscription-flow-step-heading">
+              <span className="dashboard-eyebrow">O que você acompanha?</span>
+              <strong>Identifique a cobrança</strong>
+            </div>
+            <label className="mobile-field" htmlFor="subscription-name">
+              <span className="field-label">Nome</span>
+              <span className="input-shell">
+                <KeyboardInput
+                  id="subscription-name"
+                  value={name}
+                  placeholder="Ex.: Netflix"
+                  autoCapitalize="sentences"
+                  autoCorrect="off"
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setError("");
+                  }}
+                />
+              </span>
+            </label>
+            <label className="mobile-field" htmlFor="subscription-value">
+              <span className="field-label">Valor por cobrança</span>
+              <span className="input-shell">
+                <span className="input-prefix">R$</span>
+                <KeyboardInput
+                  id="subscription-value"
+                  type="text"
+                  inputMode="decimal"
+                  value={value}
+                  placeholder="29,90"
+                  onChange={(event) => {
+                    setValue(event.target.value);
+                    setError("");
+                  }}
+                />
+              </span>
+            </label>
+          </div>
+        ) : step === 2 ? (
+          <div className="subscription-flow-step" data-step="2">
+            <div className="subscription-flow-step-heading">
+              <span className="dashboard-eyebrow">Como ela funciona?</span>
+              <strong>Defina a cobrança</strong>
+            </div>
+            <div className="subscription-form-grid">
+              <label className="mobile-field" htmlFor="subscription-frequency">
+                <span className="field-label">Frequência</span>
+                <select id="subscription-frequency" value={frequency} onChange={(event) => {
+                  setFrequency(event.target.value);
+                  setError("");
+                }}>
+                  <option value="daily">Diária</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensal</option>
+                  <option value="quarterly">Trimestral</option>
+                  <option value="annual">Anual</option>
+                </select>
+              </label>
+              <label className="mobile-field" htmlFor="subscription-payment">
+                <span className="field-label">Pagamento</span>
+                <select id="subscription-payment" value={paymentMethod} onChange={(event) => {
+                  setPaymentMethod(event.target.value);
+                  setError("");
+                }}>
+                  <option value="credit">Crédito</option>
+                  <option value="debit">Débito</option>
+                  <option value="pix">PIX</option>
+                  <option value="boleto">Boleto</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="subscription-flow-step" data-step="3">
+            <div className="subscription-flow-step-heading">
+              <span className="dashboard-eyebrow">Quando ela volta?</span>
+              <strong>Defina as próximas datas</strong>
+            </div>
+            <label className="mobile-field" htmlFor="subscription-renewal">
+              <span className="field-label">Próxima renovação</span>
+              <span className="input-shell">
+                <KeyboardInput id="subscription-renewal" type="date" value={renewalDate} onChange={(event) => {
+                  setRenewalDate(event.target.value);
+                  setError("");
+                }} />
+              </span>
+            </label>
+            <label className="mobile-field" htmlFor="subscription-trial-end">
+              <span className="field-label">Fim do teste <small>(opcional)</small></span>
+              <span className="input-shell">
+                <KeyboardInput id="subscription-trial-end" type="date" value={trialEndDate} onChange={(event) => {
+                  setTrialEndDate(event.target.value);
+                  setError("");
+                }} />
+              </span>
+            </label>
+            <div className="subscription-flow-review" aria-label="Resumo da assinatura">
+              <div><span>Serviço</span><strong>{name || "—"}</strong></div>
+              <div><span>Valor</span><strong>{value ? `R$ ${value}` : "—"}</strong></div>
+              <div><span>Cobrança</span><strong>{frequency === "monthly" ? "Mensal" : frequency === "annual" ? "Anual" : frequency === "weekly" ? "Semanal" : frequency === "daily" ? "Diária" : "Trimestral"} · {paymentMethod === "credit" ? "Crédito" : paymentMethod === "debit" ? "Débito" : paymentMethod === "pix" ? "PIX" : "Boleto"}</strong></div>
+            </div>
+          </div>
+        )}
 
         {error && <p className="auth-error subscription-form-error" role="alert">{error}</p>}
 
-        <button className="dashboard-primary-button subscription-submit" type="submit" disabled={isSaving}>
-          {isSaving ? "Salvando..." : "Cadastrar assinatura"}
-        </button>
+        <div className="subscription-flow-actions">
+          <button className="dashboard-secondary-button" type="button" onClick={goBack} disabled={isSaving}>
+            {step === 1 ? "Cancelar" : "Voltar"}
+          </button>
+          <button className="dashboard-primary-button subscription-submit" type="submit" disabled={isSaving}>
+            {step === 3 ? (isSaving ? "Salvando..." : "Cadastrar assinatura") : "Próximo"}
+          </button>
+        </div>
       </form>
     </BottomSheet>
   );
