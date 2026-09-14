@@ -170,6 +170,21 @@ function BrandLockup() {
   );
 }
 
+function DashboardSpaceBadge({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="dashboard-space-badge" type="button" aria-label="Abrir espaço +2" onClick={onClick}>
+      <span className="dashboard-space-badge-mark">
+        <img src={logoAsset} alt="" draggable={false} />
+      </span>
+      <span className="dashboard-space-badge-copy">
+        <strong>+2</strong>
+        <small>Espaço a dois</small>
+      </span>
+      <ChevronRightIcon aria-hidden="true" />
+    </button>
+  );
+}
+
 function AuthBackground() {
   return (
     <div className="auth-background" aria-hidden="true">
@@ -2364,7 +2379,7 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
   return (
     <div className="dashboard-screen" data-testid="dashboard-screen">
       <header className="dashboard-topbar">
-        <BrandLockup />
+        <DashboardSpaceBadge onClick={() => flow.push(coupleSpaceScreen())} />
         <div className="dashboard-header-actions">
           <button className="dashboard-icon-button dashboard-notification-button" type="button" aria-label="Abrir notificações" onClick={openNotifications}>
             <BellIcon aria-hidden="true" />
@@ -2452,6 +2467,67 @@ function DashboardScreen({ flow }: { flow: FlowControls }) {
         onOpenChange={setIsEditProfileSheetOpen}
         onSaved={subscriptionState.refresh}
       />
+    </div>
+  );
+}
+
+function CoupleSpaceScreen({ flow }: { flow: FlowControls }) {
+  useNativeSystemBars(SystemBarsStyle.Light);
+
+  return (
+    <div className="couple-screen" data-testid="couple-screen">
+      <header className="couple-topbar">
+        <button className="couple-back-button" type="button" aria-label="Voltar para MaisCtrl" onClick={flow.pop}>
+          <ArrowLeftIcon aria-hidden="true" />
+        </button>
+        <div className="couple-lockup" aria-label="Espaço +2">
+          <span className="couple-lockup-mark">+2</span>
+          <span>Espaço a dois</span>
+        </div>
+        <button className="couple-brand-button" type="button" aria-label="Voltar para MaisCtrl" onClick={flow.pop}>
+          <img src={logoAsset} alt="" draggable={false} />
+        </button>
+      </header>
+
+      <main className="couple-content">
+        <section className="couple-hero">
+          <div className="couple-hero-orbit couple-hero-orbit-one" aria-hidden="true" />
+          <div className="couple-hero-orbit couple-hero-orbit-two" aria-hidden="true" />
+          <span className="couple-overline"><span aria-hidden="true" /> MAISCTRL +2</span>
+          <h1>O dinheiro de vocês, no mesmo lugar.</h1>
+          <p>Um espaço para dividir planos, organizar a vida e construir juntos.</p>
+          <div className="couple-connection" aria-hidden="true">
+            <span className="couple-person couple-person-you">Você</span>
+            <span className="couple-connection-line" />
+            <span className="couple-person couple-person-plus">+</span>
+          </div>
+        </section>
+
+        <section className="couple-focus-card">
+          <div className="couple-card-heading">
+            <span>UM ESPAÇO PARA DOIS</span>
+            <strong>01</strong>
+          </div>
+          <h2>Mais clareza para decidir juntos.</h2>
+          <p>Entradas, gastos e sonhos compartilhados em uma visão leve, sem perder o controle do que é de cada um.</p>
+          <div className="couple-feature-list">
+            <div className="couple-feature-item">
+              <span className="couple-feature-symbol">↗</span>
+              <span><strong>Planejar</strong><small>metas em comum</small></span>
+            </div>
+            <div className="couple-feature-item">
+              <span className="couple-feature-symbol">◌</span>
+              <span><strong>Dividir</strong><small>sem complicar</small></span>
+            </div>
+          </div>
+        </section>
+
+        <div className="couple-next-step">
+          <span className="couple-next-step-dot" aria-hidden="true" />
+          <span>Seu espaço +2 começa aqui</span>
+          <ChevronRightIcon aria-hidden="true" />
+        </div>
+      </main>
     </div>
   );
 }
@@ -3281,6 +3357,10 @@ function resetScreen(initialEmail: string): FlowScreen {
 
 function dashboardScreen(): FlowScreen {
   return { id: "dashboard", render: (flow) => <DashboardScreen flow={flow} /> };
+}
+
+function coupleSpaceScreen(): FlowScreen {
+  return { id: "couple-space", render: (flow) => <CoupleSpaceScreen flow={flow} /> };
 }
 
 export default function Prototype() {

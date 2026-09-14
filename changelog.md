@@ -8,6 +8,8 @@ Registro das principais mudanças do MaisCtrl para Android.
 
 - Ícone do app atualizado com a imagem oficial enviada, com fundo preto, no Android, iOS e versão web instalável.
 - Logo decorativa removida da tela de cadastro para deixar o formulário livre acima do teclado.
+- Badge da logo MaisCtrl no painel pessoal transformado em entrada para o espaço +2.
+- Nova tela fixa do +2 criada com identidade visual própria e retorno direto para o painel pessoal.
 
 ### Corrigido
 

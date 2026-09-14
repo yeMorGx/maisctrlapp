@@ -149,6 +149,26 @@ test("welcome page stays fixed without a scroll container", async ({ page }) => 
   expect(Math.abs(after.y - before.y)).toBeLessThan(1);
 });
 
+test("MaisCtrl badge opens the fixed +2 space and returns to the dashboard", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+
+  await page.getByRole("button", { name: "Abrir espaço +2" }).click();
+  await expect(page.getByTestId("couple-screen")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "O dinheiro de vocês, no mesmo lugar." })).toBeVisible();
+  await expect(page.getByTestId("couple-screen").locator(".mobile-scroll")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Voltar para MaisCtrl" }).last().click();
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible();
+  await expect(page.getByTestId("couple-screen")).toHaveCount(0);
+});
+
 test("finance entries stay available locally after navigation", async ({ page }) => {
   await seedLocalSession(page);
   await page.route("**/rest/v1/**", (route) => route.fulfill({
