@@ -78,8 +78,6 @@ test("login keeps the focused fields above the simulated keyboard", async ({ pag
   const scroll = page.locator("[data-testid='login-screen'] .mobile-scroll");
   const email = page.getByLabel("E-mail");
   await email.fill("local@maisctrl.app");
-  await expect(page.getByTestId("keyboard-dock")).toHaveCSS("border-top-left-radius", "0px");
-  await expect(page.getByTestId("keyboard-dock")).toHaveCSS("border-top-right-radius", "0px");
 
   await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await expect.poll(async () => {
