@@ -13,6 +13,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Ctrl AI local com respostas orientativas e limite de cinco perguntas no plano Free.
 - Tela de Premium com planos mensal/anual, teste de sete dias, contratação por cartão e indicação clara quando o checkout seguro ainda precisa ser conectado.
 - Área +Couple com código de convite e área +Share com divisão automática 50/50 e status de pagamento.
+- Importação local de extratos bancários e de cartão em OFX/QFX, com prévia, confirmação e prevenção de lançamentos duplicados.
 
 ### Alterado
 
@@ -33,6 +34,7 @@ Registro das principais mudanças do MaisCtrl para Android.
 - Perfil removido do menu inferior; o acesso continua disponível pelo avatar no cabeçalho.
 - Logos de marcas conhecidas adicionadas às assinaturas via CDN público, com fallback para a inicial.
 - Ícone adaptativo do Android alinhado à logo oficial enviada, removendo o foreground padrão do template.
+- Lançamentos importados identificados pela conta e pelo `FITID` do banco para manter o histórico seguro em novas importações.
 
 ### Corrigido
 

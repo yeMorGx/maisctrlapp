@@ -1150,6 +1150,7 @@ type LocalTransaction = {
   category: string;
   value: number;
   date: string;
+  sourceId?: string;
 };
 
 type LocalCard = {
@@ -1208,6 +1209,99 @@ function localId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+type OfxImportResult = {
+  institution: string;
+  transactions: Array<Omit<LocalTransaction, "id">>;
+  skipped: number;
+};
+
+function decodeOfxText(value: string) {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function ofxTagValue(source: string, tag: string) {
+  const match = source.match(new RegExp(`<${tag}\\b[^>]*>([^<\\r\\n]*)`, "i"));
+  return decodeOfxText(match?.[1]?.trim() ?? "");
+}
+
+function ofxDateValue(value: string) {
+  const match = /^(\d{4})(\d{2})(\d{2})/.exec(value);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
+}
+
+function ofxAmountValue(value: string) {
+  const normalized = value.replace(/\s/g, "").replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+async function readOfxFile(file: File) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const header = new TextDecoder("windows-1252").decode(bytes.slice(0, 512));
+  const decoder = /CHARSET:\s*1252/i.test(header) ? new TextDecoder("windows-1252") : new TextDecoder("utf-8");
+  return decoder.decode(buffer);
+}
+
+function parseOfxTransactions(source: string): OfxImportResult {
+  if (!/<OFX\b/i.test(source)) throw new Error("Escolha um arquivo OFX ou QFX válido.");
+
+  const transactionStarts = Array.from(source.matchAll(/<STMTTRN\b[^>]*>/gi));
+  const endMarkers = ["</BANKTRANLIST>", "</CCSTMTRS>", "</BANKMSGSRSV1>", "</CREDITCARDMSGSRSV1>"];
+  const blocks = transactionStarts.map((match, index) => {
+    const start = match.index ?? 0;
+    const nextStart = transactionStarts[index + 1]?.index ?? source.length;
+    const end = Math.min(nextStart, ...endMarkers.map((marker) => {
+      const markerIndex = source.indexOf(marker, start);
+      return markerIndex >= 0 ? markerIndex : source.length;
+    }));
+    return source.slice(start, end);
+  });
+  if (blocks.length === 0) throw new Error("Não encontrei lançamentos nesse arquivo.");
+
+  const accountId = ofxTagValue(source, "ACCTID") || "conta";
+  const institution = ofxTagValue(source, "ORG") || "Banco importado";
+  const seenSourceIds = new Set<string>();
+  let skipped = 0;
+  const transactions = blocks.flatMap((block) => {
+    const date = ofxDateValue(ofxTagValue(block, "DTPOSTED"));
+    const rawAmount = ofxTagValue(block, "TRNAMT");
+    const amount = ofxAmountValue(rawAmount);
+    const description = ofxTagValue(block, "MEMO") || ofxTagValue(block, "NAME") || "Lançamento importado";
+    const fitId = ofxTagValue(block, "FITID");
+    if (!date || amount === null || amount === 0) {
+      skipped += 1;
+      return [];
+    }
+
+    // Alguns emissores repetem o FITID em itens diferentes do mesmo extrato.
+    // O restante da identidade mantém esses lançamentos distintos sem perder a
+    // proteção contra uma nova importação do mesmo arquivo.
+    const sourceId = `${accountId}:${fitId || "sem-fitid"}:${date}:${rawAmount}:${description}`;
+    if (seenSourceIds.has(sourceId)) {
+      skipped += 1;
+      return [];
+    }
+    seenSourceIds.add(sourceId);
+    return [{
+      type: amount > 0 ? "income" : "expense",
+      description,
+      category: "Importado",
+      value: Math.abs(amount),
+      date,
+      sourceId,
+    } satisfies Omit<LocalTransaction, "id">];
+  });
+
+  if (transactions.length === 0) throw new Error("Não encontrei lançamentos válidos nesse arquivo.");
+  return { institution, transactions: transactions.sort((left, right) => right.date.localeCompare(left.date)), skipped };
+}
+
 function readLocalTransactions() {
   if (typeof window === "undefined") return [];
 
@@ -1254,6 +1348,14 @@ function useLocalFinance() {
     setTransactions((current) => [{ ...transaction, id: localId() }, ...current]);
   };
 
+  const addTransactions = (newTransactions: Array<Omit<LocalTransaction, "id">>) => {
+    setTransactions((current) => {
+      const existingSourceIds = new Set(current.map((transaction) => transaction.sourceId).filter((sourceId): sourceId is string => Boolean(sourceId)));
+      const freshTransactions = newTransactions.filter((transaction) => !transaction.sourceId || !existingSourceIds.has(transaction.sourceId));
+      return [...freshTransactions.map((transaction) => ({ ...transaction, id: localId() })), ...current];
+    });
+  };
+
   const removeTransaction = (id: string) => {
     setTransactions((current) => current.filter((transaction) => transaction.id !== id));
   };
@@ -1262,7 +1364,7 @@ function useLocalFinance() {
     setTransactions((current) => current.map((item) => item.id === id ? { ...transaction, id } : item));
   };
 
-  return { transactions, addTransaction, updateTransaction, removeTransaction };
+  return { transactions, addTransaction, addTransactions, updateTransaction, removeTransaction };
 }
 
 function readLocalCollection<T>(storageKey: string): T[] {
@@ -3771,10 +3873,76 @@ function LocalTransactionSheet({
   );
 }
 
+function OfxImportSheet({
+  open,
+  onOpenChange,
+  fileName,
+  result,
+  duplicateCount,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fileName: string;
+  result: OfxImportResult | null;
+  duplicateCount: number;
+  onConfirm: () => void;
+}) {
+  if (!result) return null;
+
+  const newCount = result.transactions.length - duplicateCount;
+  const totalValue = result.transactions.reduce((sum, transaction) => sum + transaction.value, 0);
+
+  return (
+    <BottomSheet open={open} onOpenChange={onOpenChange} title="Importar extrato" description={`${result.institution} · ${fileName}`} snap={0.82} scrollable>
+      <div className="ofx-import-content">
+        <section className="ofx-import-summary" aria-label="Resumo da importação">
+          <div><span>Encontrados</span><strong>{result.transactions.length}</strong></div>
+          <div><span>Novos</span><strong>{newCount}</strong></div>
+          <div><span>Valor total</span><strong>{formatCurrency(totalValue)}</strong></div>
+        </section>
+
+        <div className="ofx-import-note">
+          <strong>Confira antes de lançar</strong>
+          <span>As movimentações entram como categoria “Importado” e ficam salvas apenas neste aparelho.</span>
+        </div>
+
+        <section className="ofx-import-preview" aria-label="Prévia dos lançamentos">
+          <div className="dashboard-section-title-row">
+            <div><span className="dashboard-eyebrow">Prévia</span><h2>Últimas movimentações</h2></div>
+            <span className="dashboard-calendar-count">{result.transactions.length}</span>
+          </div>
+          {result.transactions.slice(0, 6).map((transaction) => (
+            <div className="ofx-import-row" key={transaction.sourceId}>
+              <span className="dashboard-list-avatar" data-tone={transaction.type === "income" ? "green" : "red"}>{transaction.type === "income" ? "+" : "−"}</span>
+              <span className="dashboard-list-copy"><strong>{transaction.description}</strong><small>{formatShortDate(transaction.date)} · Importado</small></span>
+              <strong className="ofx-import-value" data-type={transaction.type}>{transaction.type === "income" ? "+" : "−"}{formatCurrency(transaction.value)}</strong>
+            </div>
+          ))}
+        </section>
+
+        {duplicateCount > 0 && <p className="ofx-import-feedback" data-tone="info" role="status">{duplicateCount} lançamento{duplicateCount === 1 ? " já existe" : "s já existem"} e não {duplicateCount === 1 ? "será duplicado" : "serão duplicados"}.</p>}
+        {result.skipped > 0 && <p className="ofx-import-feedback" data-tone="warning" role="status">{result.skipped} registro{result.skipped === 1 ? " foi ignorado" : "s foram ignorados"} por falta de data ou valor válido.</p>}
+
+        <button className="dashboard-primary-button subscription-submit" type="button" onClick={onConfirm} disabled={newCount <= 0}>
+          {newCount > 0 ? `Importar ${newCount} lançamento${newCount === 1 ? "" : "s"}` : "Nenhum lançamento novo"}
+        </button>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function DashboardFinance() {
-  const { transactions, addTransaction, updateTransaction, removeTransaction } = useLocalFinance();
+  const keyboard = useKeyboard();
+  const { transactions, addTransaction, addTransactions, updateTransaction, removeTransaction } = useLocalFinance();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null);
+  const [isImportSheetOpen, setIsImportSheetOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+  const [importResult, setImportResult] = useState<OfxImportResult | null>(null);
+  const [importError, setImportError] = useState("");
+  const [importFeedback, setImportFeedback] = useState("");
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [view, setView] = useState<"overview" | "entries">("overview");
   const [periodFilter, setPeriodFilter] = useState<"month" | "all">("month");
   const [query, setQuery] = useState("");
@@ -3811,8 +3979,57 @@ function DashboardFinance() {
   const periodLabel = periodFilter === "all" ? "Todo o período" : "Este mês";
 
   const openNewTransaction = () => {
+    keyboard.hide();
     setSelectedTransaction(null);
     setIsSheetOpen(true);
+  };
+
+  const openImportPicker = () => {
+    keyboard.hide();
+    setImportError("");
+    importInputRef.current?.click();
+  };
+
+  const handleOfxFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setImportError("O arquivo precisa ter no máximo 10 MB.");
+      return;
+    }
+
+    try {
+      const parsed = parseOfxTransactions(await readOfxFile(file));
+      setImportFileName(file.name);
+      setImportResult(parsed);
+      setImportFeedback("");
+      setImportError("");
+      keyboard.hide();
+      setIsImportSheetOpen(true);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Não foi possível ler esse arquivo.");
+    }
+  };
+
+  const duplicateCount = importResult?.transactions.filter((transaction) => transaction.sourceId && transactions.some((current) => current.sourceId === transaction.sourceId)).length ?? 0;
+
+  const confirmImport = () => {
+    if (!importResult) return;
+    const freshTransactions = importResult.transactions.filter((transaction) => !transaction.sourceId || !transactions.some((current) => current.sourceId === transaction.sourceId));
+    if (freshTransactions.length === 0) return;
+    addTransactions(freshTransactions);
+    setImportFeedback(`${freshTransactions.length} lançamento${freshTransactions.length === 1 ? "" : "s"} importado${freshTransactions.length === 1 ? "" : "s"}.`);
+    setView("entries");
+    setPeriodFilter("all");
+    keyboard.hide();
+    setIsImportSheetOpen(false);
+  };
+
+  const handleImportSheetChange = (open: boolean) => {
+    if (!open) keyboard.hide();
+    setIsImportSheetOpen(open);
   };
 
   const openEditTransaction = (transaction: LocalTransaction) => {
@@ -3863,10 +4080,16 @@ function DashboardFinance() {
         <div className="finance-metric-card" data-tone="red"><span>Saídas</span><strong>{formatCurrency(expenses)}</strong></div>
       </div>
 
-      <button className="dashboard-primary-button finance-add-button" type="button" onClick={openNewTransaction}>
-        <PlusIcon aria-hidden="true" />
-        Novo lançamento
-      </button>
+      <div className="finance-primary-actions">
+        <button className="dashboard-primary-button finance-add-button" type="button" onClick={openNewTransaction}>
+          <PlusIcon aria-hidden="true" />
+          Novo lançamento
+        </button>
+        <button className="finance-import-button" type="button" onClick={openImportPicker}>Importar OFX</button>
+        <input ref={importInputRef} className="finance-file-input" type="file" accept=".ofx,.qfx,application/x-ofx,application/vnd.intu.qfx" onChange={handleOfxFileChange} aria-label="Selecionar arquivo OFX" />
+      </div>
+      {importError && <p className="auth-error finance-import-error" role="alert">{importError}</p>}
+      {importFeedback && <p className="dashboard-push-feedback finance-import-feedback" data-tone="success" role="status">{importFeedback}</p>}
 
       <div className="finance-view-switch" role="tablist" aria-label="Conteúdo financeiro">
         <button type="button" role="tab" aria-selected={view === "overview"} data-active={view === "overview"} onClick={() => setView("overview")}>Visão geral</button>
@@ -3944,7 +4167,7 @@ function DashboardFinance() {
           <div className="finance-filters" aria-label="Filtros de lançamentos">
             <label className="finance-search-field">
               <span className="sr-only">Buscar lançamento</span>
-              <input value={query} placeholder="Buscar" onChange={(event) => setQuery(event.target.value)} />
+              <KeyboardInput value={query} placeholder="Buscar" onChange={(event) => setQuery(event.target.value)} />
             </label>
             <label className="finance-filter-field">
               <span className="sr-only">Filtrar por tipo</span>
@@ -3979,6 +4202,7 @@ function DashboardFinance() {
       )}
 
       <LocalTransactionSheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setSelectedTransaction(null); }} transaction={selectedTransaction} onCreated={handleTransactionSave} />
+      <OfxImportSheet open={isImportSheetOpen} onOpenChange={handleImportSheetChange} fileName={importFileName} result={importResult} duplicateCount={duplicateCount} onConfirm={confirmImport} />
     </>
   );
 }

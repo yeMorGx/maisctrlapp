@@ -521,3 +521,30 @@ test("finance entries stay available locally after navigation", async ({ page })
   await page.getByRole("tab", { name: "Lançamentos" }).click();
   await expect(page.getByText("Mercado")).toBeVisible();
 });
+
+test("imports OFX transactions locally and skips duplicates", async ({ page }) => {
+  await seedLocalSession(page);
+  await page.route("**/rest/v1/**", (route) => route.fulfill({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: "[]",
+  }));
+  await page.goto("/");
+  await expect(page.getByTestId("dashboard-screen")).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Finanças", exact: true }).click();
+  await page.getByRole("button", { name: "Importar OFX", exact: true }).click();
+
+  const ofx = `OFXHEADER:100\nDATA:OFXSGML\nCHARSET:1252\n<OFX><CREDITCARDMSGSRSV1><CCSTMTRS><CCACCTFROM><ACCTID>nubank-123</ACCTID></CCACCTFROM><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260912000000<TRNAMT>-49.00<FITID>fit-1<MEMO>Cinemark Praiamar</STMTTRN><STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20260911000000<TRNAMT>120.50<FITID>fit-1<MEMO>Estorno</STMTTRN></BANKTRANLIST></CCSTMTRS></CREDITCARDMSGSRSV1></OFX>`;
+  await page.locator("input.finance-file-input").setInputFiles({ name: "nubank.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
+
+  await expect(page.getByRole("heading", { name: "Importar extrato" })).toBeVisible();
+  await expect(page.getByText("Cinemark Praiamar")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Importar 2 lançamentos" })).toBeVisible();
+  await page.getByRole("button", { name: "Importar 2 lançamentos" }).click();
+  await expect(page.getByText("2 lançamentos importados.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Importar OFX", exact: true }).click();
+  await page.locator("input.finance-file-input").setInputFiles({ name: "nubank.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
+  await expect(page.getByRole("button", { name: "Nenhum lançamento novo" })).toBeDisabled();
+  await expect(page.getByText("2 lançamentos já existem e não serão duplicados.")).toBeVisible();
+});
