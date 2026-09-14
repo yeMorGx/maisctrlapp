@@ -21,6 +21,47 @@ if (!existsSync(siteDirectory)) {
   throw new Error(`Diretório do site não encontrado: ${siteDirectory}`);
 }
 
+const changelogTypes = {
+  Adicionado: "feature",
+  Alterado: "improvement",
+  Corrigido: "fix",
+  Documentação: "improvement",
+};
+
+function readPendingChanges() {
+  const changelogPath = path.join(mobileDirectory, "changelog.md");
+  if (!existsSync(changelogPath)) return [];
+
+  const changelog = readFileSync(changelogPath, "utf8");
+  const sectionHeading = "## Não publicado";
+  const sectionStart = changelog.indexOf(sectionHeading);
+  if (sectionStart < 0) return [];
+
+  const sectionContent = changelog.slice(sectionStart + sectionHeading.length);
+  const nextVersionStart = sectionContent.search(/\r?\n##\s+/);
+  const pendingSection = nextVersionStart >= 0 ? sectionContent.slice(0, nextVersionStart) : sectionContent;
+  const changes = [];
+  let currentType = "improvement";
+
+  for (const line of pendingSection.split(/\r?\n/)) {
+    const category = line.match(/^###\s+(.+?)\s*$/)?.[1];
+    if (category && changelogTypes[category]) {
+      currentType = changelogTypes[category];
+      continue;
+    }
+
+    const text = line.match(/^\s*-\s+(.+?)\s*$/)?.[1];
+    if (text) changes.push({ type: currentType, text });
+  }
+
+  return changes;
+}
+
+function serializeReleaseChanges(changes) {
+  const entries = changes.map(({ type, text }) => `    { type: ${JSON.stringify(type)}, text: ${JSON.stringify(text)} },`);
+  return `  changes: [\n${entries.join("\n")}\n  ],`;
+}
+
 async function github(pathname) {
   const response = await fetch(`https://api.github.com/repos/${repository}${pathname}`, {
     headers: {
@@ -63,17 +104,24 @@ if (!expectedHash || expectedHash !== actualHash) {
 const build = Number(latestRun.run_number);
 const version = `0.1.${build}`;
 const releasedAt = String(latestRun.created_at ?? release.created_at).slice(0, 10);
+const pendingChanges = readPendingChanges();
+const releaseChanges = pendingChanges.length > 0
+  ? pendingChanges
+  : [{ type: "improvement", text: "Ajustes de estabilidade e atualização da versão Android." }];
 const apkPath = path.join(siteDirectory, "public", "downloads", "maisctrl.apk");
 const releaseInfoPath = path.join(siteDirectory, "src", "content", "androidRelease.ts");
 const releaseInfo = readFileSync(releaseInfoPath, "utf8")
   .replace(/version: "[^"]+"/, `version: "${version}"`)
   .replace(/build: \d+/, `build: ${build}`)
   .replace(/releasedAt: "[^"]+"/, `releasedAt: "${releasedAt}"`);
+const releaseInfoWithChanges = releaseInfo.includes("  changes:")
+  ? releaseInfo.replace(/  changes: \[[\s\S]*?\r?\n  \],/, serializeReleaseChanges(releaseChanges))
+  : releaseInfo.replace(/(  releasedAt: "[^"]+",\r?\n)/, `$1${serializeReleaseChanges(releaseChanges)}\n`);
 
 if (dryRun) {
-  console.log(`Dry run: ${version} build ${build}, ${apk.length} bytes, SHA-256 ${actualHash}.`);
+  console.log(`Dry run: ${version} build ${build}, ${apk.length} bytes, ${releaseChanges.length} change(s), SHA-256 ${actualHash}.`);
 } else {
   writeFileSync(apkPath, apk);
-  writeFileSync(releaseInfoPath, releaseInfo);
-  console.log(`APK sincronizado: ${version} build ${build}, ${apk.length} bytes, SHA-256 ${actualHash}.`);
+  writeFileSync(releaseInfoPath, releaseInfoWithChanges);
+  console.log(`APK sincronizado: ${version} build ${build}, ${apk.length} bytes, ${releaseChanges.length} change(s), SHA-256 ${actualHash}.`);
 }
